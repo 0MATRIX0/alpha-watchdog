@@ -218,7 +218,7 @@ button:disabled { cursor: default; }
 .msg-user {
   align-self: flex-end; max-width: 78%;
   background: var(--surface); border-radius: 18px; padding: 9px 16px;
-  white-space: pre-wrap; overflow-wrap: anywhere;
+  white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word;
 }
 .msg-user.masked { color: var(--muted); font-style: italic; }
 
@@ -228,7 +228,7 @@ button:disabled { cursor: default; }
   display: grid; place-items: center; background: var(--blue-soft); margin-top: 1px;
 }
 .msg-body { flex: 1; min-width: 0; padding-top: 2px; }
-.msg-p { margin: 0 0 10px; overflow-wrap: anywhere; }
+.msg-p { margin: 0 0 10px; overflow-wrap: anywhere; word-break: break-word; }
 .msg-p:last-child { margin-bottom: 0; }
 .msg-content > .msg-p:last-of-type { margin-bottom: 0; }
 

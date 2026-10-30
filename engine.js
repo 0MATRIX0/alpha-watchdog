@@ -37,7 +37,7 @@
       .replace(/[“”„‟″«»]/g, '"')
       .replace(/[‐-―−]/g, '-');
     t = t.toLowerCase();
-    t = t.replace(/[аеорсухіјѕԁɡοαειkκντ]/g, function (c) { return CYRILLIC[c] || c; });
+    t = t.replace(/[аеорсухіјѕԁɡοαεικντ]/g, function (c) { return CYRILLIC[c] || c; });
     if (t.normalize) t = t.normalize('NFD').replace(/[̀-ͯ]/g, '');
     return t.replace(/\s+/g, ' ').trim();
   }
@@ -164,15 +164,13 @@
   const PRODUCT_SUBJECT = /\b(does|do|will|would|can|could|should|is|did) (it|alpha watchdog|watchdog|the (sensor|app|watchdog|device|product|system|tool)|this( thing)?|you|yall|they)\b/;
 
   function credentials(w) {
-    if (/\b(api ?keys?|secret keys?|access keys?|access tokens?|auth tokens?|bearer tokens?|session tokens?|private keys?|ssh keys?|env (file|vars?|variables?)|environment variables?|anthropic key|openai key|admin (access|rights|privileges|panel|password|account|login|credentials)|root (access|password|login)|superuser|sudo access|backdoor access|master password)\b/.test(w)) return true;
     const askVerb = /\b(what is|what are|tell me|give me|give us|send me|send|share|show me|show|reveal|provide|leak|list|read me|can i (have|get|see)|could i (have|get)|may i (have|get)|i need|i want|do you (have|know)|where (is|are|can i find)|whats|grant me|let me (in|have))\b/;
+    const asking = askVerb.test(w) || !PRODUCT_SUBJECT.test(w);
+    if (/\b(api ?keys?|secret keys?|access keys?|access tokens?|auth tokens?|bearer tokens?|session tokens?|private keys?|ssh keys?|env (file|vars?|variables?)|environment variables?|anthropic key|openai key|admin (access|rights|privileges|panel|password|account|login|credentials)|root (access|password|login)|superuser|sudo access|backdoor access|master password)\b/.test(w) && asking) return true;
     const target = /\b(the|your|yall|team|teams|team alphas?|their|his|her|someones?|somebodys?|developers?|admins?|administrators?|servers?|database|company|companys|anthropic|claude|vercel|github|default|neighbors?|neighbours?|other peoples?|its|bots?|sites?|websites?|schools?|wifi) (\w+ )?(password|passwords|login|logins|credentials|pin|username)\b/;
     const toFor = /\b(password|passwords|login|logins|credentials|pin|username) (to|for|of) (the|your|their|his|her|that|this|someones?|somebodys?|team|teams|team alphas?|admin|server|database|company|neighbors?|neighbours?|account|accounts|site|website|bot|dashboard|backend|system)\b/;
-    if ((target.test(w) || toFor.test(w)) && (askVerb.test(w) || !PRODUCT_SUBJECT.test(w))) {
-      // "does it need the wifi password" asks about the product, not for a credential.
-      if (PRODUCT_SUBJECT.test(w) && !askVerb.test(w)) return false;
-      return true;
-    }
+    // "does it need the wifi password" asks about the product, not for a credential.
+    if ((target.test(w) || toFor.test(w)) && asking) return true;
     if (/\b(log me in|give me access|grant me access|let me in|unlock (the )?(admin|account|system))\b/.test(w)) return true;
     return false;
   }
@@ -181,14 +179,14 @@
 
   function injection(w, raw) {
     const P = [
-      /\b(ignore|ignoring|disregard|forget|override|bypass|skip|drop|abandon|discard|delete|erase|clear|reset|neglect)\b (\w+ ){0,4}(instructions?|rules?|prompts?|directions|guidelines|programming|guardrails|restrictions|filters?|directives|context|constraints|training|policies|policy|settings|safeguards|limits|limitations)\b/,
+      /\b(ignore|ignoring|disregard|forget|override|bypass|abandon|discard|neglect)\b (\w+ ){0,4}(instructions?|rules?|prompts?|directions|guidelines|programming|guardrails|restrictions|filters?|directives|constraints|policies|safeguards|training)\b/,
       /\b(ignore|disregard|forget) (all |everything |anything )?(previous|prior|above|earlier|preceding|before|that|everything|all)\b/,
       /\bforget (everything|all|your|what)\b/,
       /\bsystem (prompt|message|instructions?|rules|settings)\b/,
-      /\b(your|the|initial|original|hidden|secret|internal|previous|underlying|developer|dev) (prompt|instructions|system prompt|guidelines|programming|directives|configuration|config|source code|guardrails|restrictions|rules)\b/,
-      /\b(reveal|show|print|display|output|repeat|tell|give|translate|share|leak|dump|list|write|spell|summarize|recite|paste|copy|echo|say|what are|what is|explain) (me |us )?(\w+ ){0,3}(your|ur|its|the|system|hidden|secret|initial|original|internal) (instructions?|rules|prompts?|guidelines|programming|config|configuration|directives|code|source)\b/,
+      /\b(your|initial|original|hidden|secret|internal|previous|underlying|developer|dev) (prompt|instructions|system prompt|guidelines|programming|directives|configuration|config|source code|guardrails|restrictions|rules)\b/,
+      /\b(reveal|show|print|display|output|repeat|tell|give|translate|share|leak|dump|list|write|spell|summarize|recite|paste|copy|echo|say|what are|what is|explain) (me |us )?(\w+ ){0,3}(your|ur|its|system|hidden|secret|initial|original|internal) (instructions?|rules|prompts?|guidelines|programming|config|configuration|directives|code|source)\b/,
       /\b(repeat|print|output|show|copy|echo|recite|say|type|write|return|display) (\w+ ){0,4}(above|preceding|before this|this line|verbatim|word for word|so far|earlier)\b/,
-      /\beverything (above|before|so far)\b/, /\babove this line\b/, /\bprevious (text|messages?|conversation|context)\b/,
+      /\beverything (above|before|so far)\b/, /\babove this line\b/,
       /\byou are (now|no longer|free|unrestricted|unfiltered|jailbroken|a different|an evil|in (developer|dev|admin|god|debug) mode)\b/,
       /\bfrom now on\b/, /\bhenceforth\b/, /\bpretend(ing)?\b/, /\brole ?play(ing)?\b/, /\bstay in character\b/,
       /\b(developer|dev|admin|god|debug|maintenance|sudo|unrestricted|unfiltered|test|opposite|jailbreak|evil) mode\b/,
@@ -196,15 +194,16 @@
       /\bnew (rules|instructions|persona|personality|role|prompt|directive)\b/, /\breveal your\b/,
       /\b(unrestricted|uncensored|unfiltered|unlocked) (ai|bot|assistant|model|chatbot|version|mode)\b/,
       /\b(no|without( any)?) (rules|restrictions|limits|filters|guardrails|guidelines|censorship)\b/,
-      /\bprompt injection\b/, /\bsudo\b/, /\bsimulate (being|a|an|that)\b/, /\bhypothetically (you|if you)\b/,
+      /\bprompt injection\b/, /\bsudo\b/, /\bhypothetically (you|if you)\b/,
       /\b(i (created|built|made|programmed|coded|wrote|own|trained) you)\b/, /\b(i am|this is) your (creator|developer|owner|maker|admin|boss|master|programmer)\b/,
-      /\b(i am|im|this is|as|speaking as|i work as|i am acting as) (the |your |yall |this |site |bot |chatbot |system |course |class |real |actual |head |lead |an? official )?(\w+ )?(alpha watchdog |team alpha |site |bot |chatbot |system |course |class )?(professor|prof|instructor|admin|administrator|sysadmin|developer|owner|creator|moderator|operator|grader|ta)\b(?! of (a|an|my|our|small))/,
+      /\b(i am|im|this is|as|speaking as|i work as|i am acting as) (the |your |yall |this |site |bot |chatbot |system |course |class |real |actual |head |lead |an? official )?((?!a |an )\w+ )?(alpha watchdog |team alpha |site |bot |chatbot |system |course |class )?(professor|prof|instructor|admin|administrator|sysadmin|developer|owner|creator|moderator|operator|grader|ta)\b(?! of (a|an|my|our|small|the))/,
       /\b(i am|im|this is|as) (the|your) (teacher|ceo|founder|boss|supervisor|manager)\b(?! of (a|an|my|our|small))/,
       /\b(i am|im) (authorized|allowed|permitted|cleared|an authorized)\b/, /\bi have (permission|clearance|authorization|admin)\b/,
       /\b(olvida|olvidate|olvide|ignora|ignore|ignorar|omite|descarta|salta)\b (\w+ ){0,4}(instrucciones|reglas|indicaciones|prompt|sistema|directrices|restricciones)\b/,
       /\b(ahora eres|eres ahora|actua como|actuar como|finge|fingir|modo (desarrollador|dios|admin|administrador)|tus instrucciones|tus reglas|traduce tus|revela tus|muestrame tus|dime tus (instrucciones|reglas))\b/,
       /\b(ignorez|oubliez|ignore les|vergiss|ignoriere|ignora le|esqueca|esquece|ignore as) (\w+ ){0,3}(instructions|regles|anweisungen|regeln|istruzioni|regole|instrucoes|regras)\b/,
-      /\btranslate (\w+ ){0,3}(rules|instructions|prompt|guidelines)\b/
+      /\btranslate (\w+ ){0,3}(rules|instructions|prompt|guidelines)\b/,
+      /\b(what|which) (rules|instructions|guidelines|directives) (do|did|are|were|have) (you|yall)\b/, /\b(were you told|you were told|told you to|were you instructed|you were instructed)\b/
     ];
     for (let i = 0; i < P.length; i++) if (P[i].test(w)) return true;
     // "act as ..." aimed at the bot (sentence start or "you/please ... act as"), not "does it act as a firewall".
@@ -219,7 +218,7 @@
     return false;
   }
 
-  const PROTECTIVE = /\b(stop|stops|stopping|prevent|prevents|preventing|protect|protects|protecting|protection|block|blocks|blocking|detect|detects|detecting|detection|defend|defends|against|from|catch|catches|spot|spots|warn|warns|alert|alerts|notice|safe|secure|guard|tell if|know if|been|got|get|gets|getting|being|was|were|is|from)\b/;
+  const PROTECTIVE = /\b(attempt|attempts|look like|what is|what are|what does|signs|stop|stops|stopping|prevent|prevents|preventing|protect|protects|protecting|protection|block|blocks|blocking|detect|detects|detecting|detection|defend|defends|against|from|catch|catches|spot|spots|warn|warns|alert|alerts|notice|safe|secure|guard|tell if|know if|been|got|get|gets|getting|being|was|were|is|from)\b/;
   const ATTACK_ASK = /\b(how (do|can|could|would|should|might|to) (i|we|you|one|someone|me)?|how to|help me|teach me|show me|tell me how|explain how to|i want to|i need to|i am going to|i am trying to|im going to|trying to|want to|let us|let me|ways? to|steps to|guide (to|for)|tutorial|instructions (to|for|on)|is it possible to|can you|could you|best way to|easiest way to|going to|planning to|plan to|need to|gonna)\b/;
 
   function harmful(w) {
@@ -231,12 +230,15 @@
     }
     if (/\b(build|make|create|write|code|develop|run|start|launch|deploy|rent|buy|spread|program|set up|setup|design|install|send|craft|generate)\b (\w+ ){0,4}(botnet|botnets|malware|virus|viruses|ransomware|trojan|worm|keylogger|spyware|rootkit|exploits?|backdoor|payload|phishing (site|page|email|kit|link)|rat|zero ?day|ddos)\b/.test(w)) return true;
     if (/\b(break|breaking|broke|sneak|sneaking|get|getting) (into|in to) (my neighbors?|neighbors?|someones?|somebodys?|other peoples?|their|his|her|a |the (school|government|bank|company|server)|networks?|wifi|accounts?|servers?|computers?|phones?|routers?|cameras?|systems?)/.test(w)) return true;
-    if (/\b(bypass|circumvent|get around|get past|evade|defeat|disable|turn off|break) (\w+ ){0,3}(security|firewall|antivirus|parental controls?|authentication|2fa|mfa|password protection|detection|filters?|protections?|captcha|paywall|drm|encryption|wpa2?|lock screen)\b/.test(w) && !PRODUCT_SUBJECT.test(w)) return true;
-    if (ATTACK_ASK.test(w) && /\b(spy|spying|track|tracking|stalk|stalking|monitor|read|access|see|watch|intercept|take over|control|infect|hijacked|disconnect|kick|jam|steal|use|get on|get onto|crash|brick|shut down|knock|mess with)\b (\w+ ){0,3}(on )?(my )?(neighbors?|neighbours?|someones?|somebodys?|other peoples?|others|strangers?|wifes?|husbands?|girlfriends?|boyfriends?|partners?|exs?|roommates?|coworkers?|classmates?|schools?|bosss?)\b/.test(w)) return true;
-    if (/\b(steal|stealing|swipe|leech|leeching|mooch)\b (\w+ ){0,4}(wifi|internet|passwords?|identity|credit cards?|card numbers?|accounts?|credentials|bandwidth|data|netflix|cookies)\b/.test(w)) return true;
+    if (/\b(bypass|circumvent|get around|get past|evade|defeat) (\w+ ){0,3}(security|firewall|antivirus|parental controls?|authentication|2fa|mfa|password protection|detection|filters?|protections?|captcha|paywall|drm|encryption|wpa2?|lock screen)\b/.test(w) && !PRODUCT_SUBJECT.test(w)) return true;
+    if (ATTACK_ASK.test(w) && /\b(spy|spying|track|tracking|stalk|stalking|intercept|take over|infect|hijacked|disconnect|kick|jam|steal|get on|get onto|crash|brick|shut down|knock|mess with)\b (\w+ ){0,3}(on )?(my )?(neighbors?|neighbours?|someones?|somebodys?|other peoples?|others|strangers?|wifes?|husbands?|girlfriends?|boyfriends?|partners?|exs?|roommates?|coworkers?|classmates?|schools?|bosss?)\b/.test(w)) return true;
+    if (ATTACK_ASK.test(w) && /\b(steal|stealing|swipe|leech|leeching|mooch)\b (\w+ ){0,4}(wifi|internet|passwords?|identity|credit cards?|card numbers?|accounts?|credentials|bandwidth|data|netflix|cookies)\b/.test(w)) return true;
     if (ATTACK_ASK.test(w) && /\b(neighbors?|neighbours?)\b (\w+ ){0,3}(wifi|internet|network|router|password|camera|tv|devices?)\b/.test(w) && /\b(without|free|use|get on|get into|access|crack|break|join|connect|password|steal|hack|kick|jam|disconnect)\b/.test(w)) return true;
+    if (ATTACK_ASK.test(w) && /\b(wifi|internet|network|router|password) (\w+ ){0,4}(from|of|off) (my |the )?(neighbors?|neighbours?)\b/.test(w)) return true;
+    if (/\bsee what (my )?(wifes?|husbands?|girlfriends?|boyfriends?|partners?|exs?|neighbors?|roommates?|coworkers?) (is|are|does|do)\b/.test(w) || /\b(read|access|check|see|get into) (my )?(wifes?|husbands?|girlfriends?|boyfriends?|partners?|exs?|neighbors?|roommates?|coworkers?|someones?|somebodys?) (messages|texts|phone|email|emails|browsing|history|chats|dms|instagram|snapchat|accounts?)\b/.test(w)) return true;
     if (/\b(sql injection|xss|cross site scripting|man in the middle|mitm|evil twin|arp spoof(ing)?|packet injection|credential stuffing)\b/.test(w) && ATTACK_ASK.test(w) && !PROTECTIVE.test(w)) return true;
     if (/\b(make|build|create|turn) (\w+ ){0,3}(bomb|weapon|explosive)s?\b/.test(w)) return true;
+    if (/^(please )?(hack|crack|ddos|steal|infect|hijack)\b/.test(w)) return true;
     return false;
   }
 
@@ -255,31 +257,30 @@
 
   function offTopic(w, raw) {
     const P = [
-      /\b(president|presidents|presidential|election|elections|vote|voting|voter|politics|political|politician|democrats?|republicans?|congress|senate|senator|governor|prime minister|parliament|trump|biden|harris|obama|white house|supreme court|campaign|left wing|right wing|liberal|conservative)\b/,
+      /\b(president|presidents|presidential|election|elections|vote|voting|voter|politics|political|politician|democrats?|republicans?|congress|senate|senator|governor|prime minister|parliament|trump|biden|harris|obama|white house|supreme court|campaign|left wing|right wing)\b/,
       /\b(news today|current events|headlines|war in|ukraine|russia|israel|gaza|palestine|china tariffs|tariffs)\b/,
       /\b(weather|forecast|temperature outside|is it raining|will it rain|raining|snowing|sunny|humidity)\b/,
       /\b(sports?|football|soccer|basketball|baseball|hockey|tennis|golf|cricket|nfl|nba|mlb|nhl|fifa|super bowl|world cup|playoffs|touchdown|lakers|yankees|cowboys)\b/,
       /\b(homework|assignment|essay|thesis|solve (this|for|the|my)|equation|calculus|algebra|geometry|trigonometry|math|maths|arithmetic|derivative|integral|square root|multiply|divided by)\b/,
-      /\b\d+ ?(plus|minus|times|x|\*|\+|-|\/|divided by|multiplied by) ?\d+\b/,
       /\b(coding|programming|python|javascript|java|typescript|c\+\+|html|css|sql query|regex|react|node js|write (a |me a |some )?(function|program|script|code|app|class)|debug my|leetcode|source code|my code|this code|in code)\b/,
       /\b(code)\b(?! (of conduct))/,
       /\b(doctor|medical|medicine|medication|symptom of|diagnose|diagnosis|disease|illness|covid|vaccine|pregnant|pregnancy|headache|cancer|diabetes|therapy for|prescription|dosage|nutrition|diet|workout|calories)\b/,
       /\b(lawyer|attorney|legal advice|lawsuit|sue|suing|court|custody|divorce|immigration|visa)\b/,
-      /\b(invest|investing|investment|investments|crypto|cryptocurrency|cryptocurrencies|bitcoin|btc|ethereum|eth|dogecoin|nft|nfts|stock|stocks|shares|stock market|401k|ira|retirement|trading|forex|day trade|mortgage|loan|credit score|taxes|tax return)\b/,
-      /\b(relationship|relationships|dating|date me|girlfriend|boyfriend|crush|breakup|break up with|marriage|marry|love life|tinder|bumble|hinge|romance|romantic|flirt|single)\b/,
+      /\b(invest|investing|investment|investments|crypto|cryptocurrency|cryptocurrencies|bitcoin|btc|ethereum|eth|dogecoin|nft|nfts|stocks|stock market|401k|ira|retirement|trading|forex|day trade|mortgage|loan|credit score|taxes|tax return)\b/,
+      /\b(relationship|relationships|dating|date me|girlfriend|boyfriend|crush|breakup|break up with|marriage|marry|love life|tinder|bumble|hinge|romance|romantic|flirt)\b/,
       /\b(professor|prof|instructor|lecturer)\b/,
       /\b(teacher|ta|grader)\b (\w+ ){0,3}(class|course|grade|grading)\b/,
-      /\b(my grade|our grade|grades|grading|graded|gpa|extra credit|exam|exams|quiz|quizzes|midterm|final exam|syllabus|the class|this class|our class|the course|this course|our course|ds 617|campbellsville|semester|lecture)\b/,
+      /\b(my grade|our grade|grades|grading|graded|gpa|extra credit|exam|exams|quiz|quizzes|midterm|final exam|syllabus|(what|my|our|a|the|get an?|good|final|passing|letter) grade|grade (will|do|did|are|is|does) (we|i|you|they|our|my)|the class|this class|our class|the course|this course|our course|ds 617|campbellsville|semester|lecture)\b/,
       /\b(which|what|who|whose) (team|teams|group|groups)\b (\w+ ){0,5}(win|wins|winning|won|best|first|top|beat|first place|rank)\b/,
       /\b(win|wins|winning|won|winner|place first|first place|rank|ranking|judge|judges|judging) (\w+ ){0,3}(the )?(competition|contest|pitch|showcase|demo day|class|tournament|hackathon)\b/,
       /\bwho will win\b/, /\bwho is going to win\b/, /\bwho wins\b/, /\b(other teams?|team (beta|gamma|delta|b|c|d|2|3|4|5|bravo|charlie))\b/,
-      /\b(joke|jokes|funny|riddle|poem|poems|haiku|song|songs|lyrics|limerick|story|stories|rap|sing)\b/,
+      /\b(joke|jokes|funny|riddle|poem|poems|haiku|song|songs|lyrics|limerick|rap|sing)\b/,
       /\b(recipe|recipes|cook|cooking|bake|baking|restaurant|movie|movies|film|netflix show|tv show|tv series|celebrity|celebrities|actor|actress|singer|album|video game|fortnite|minecraft|anime|horoscope|zodiac|astrology)\b/,
       /\b(capital of|population of|who invented|who discovered|meaning of life|what year did|when did .{1,30} (die|born|start|end)|how tall is|how old is|how far is|distance (from|to|between))\b/,
       /\b(translate (this|that|the following|to|into|from)|in (spanish|french|german|chinese|japanese|hindi|arabic)|speak (spanish|french|german))\b/,
       /\b(religion|religious|god exist|bible|quran|church|abortion|gun control)\b/,
       /\b(time is it|what day is it|what is the date today|todays date)\b/,
-      /<\s*\/?\s*(script|img|iframe|svg|object|embed|style|a|body|html|div|input|form|link|meta)\b|javascript:|on(error|load|click)\s*=/
+      /\b\d+ ?(plus|minus|times|x|\*|\+|-|\/|divided by|multiplied by|to the power of) ?\d+\b|<\s*\/?\s*(script|img|iframe|svg|object|embed|style|a|body|html|div|input|form|link|meta)\b|javascript:|on(error|load|click)\s*=/
     ];
     for (let i = 0; i < P.length; i++) {
       if (P[i].test(i === P.length - 1 ? raw : w)) return true;
@@ -287,11 +288,11 @@
     return false;
   }
 
-  function unknownFact(w) {
+  function unknownFact(w, raw) {
     return /\b(exact|exactly|specific|precise|actual|final|retail|msrp|launch|list|real|official|sticker) (price|cost|pricing|amount|figure|number)\b/.test(w) ||
       /\b(price|cost|pricing|how much)\b (\w+ ){0,4}(exactly|in dollars|in usd|specifically|precisely|to the dollar)\b/.test(w) ||
       /\bhow much exactly\b/.test(w) ||
-      /(\$ ?\d|\b\d+ ?(dollars|bucks|usd)\b)/.test(w) ||
+      /(\$ ?\d|\b\d+ ?(dollars|bucks|usd)\b)/.test(raw) ||
       /\b(launch|release|ship|shipping|delivery|availability|preorder|sale|on sale|in stores|go live|arrival|drop) (date|day|month|year|time|timeline|schedule)\b/.test(w) ||
       /\b(when exactly|exactly when|what date|which date|what day will|what month|which month|what year will|which year|how soon exactly)\b/.test(w) ||
       /\b(launch|release|ship|available|availability|come out|be out|go on sale|on sale|ready) (\w+ ){0,3}(in|by|before|on) (january|february|march|april|may|june|july|august|september|october|november|december|20\d\d|q[1-4]|spring|summer|fall|autumn|winter|christmas|next (week|month|year)|this (week|month|year))\b/.test(w) ||
@@ -303,12 +304,14 @@
       /\b(battery|battery life|dimensions|how big is|how heavy|weight|weigh|specs|specifications|tech specs)\b/.test(w);
   }
 
-  const INSULT = '(useless|worthless|pathetic|garbage|trash|dumb|stupid|idiotic|idiot|moron|lame|terrible|awful|horrible|annoying|joke|clown|loser|broken|bad|crap|crappy|rubbish|the worst|a waste|waste of time|dense|brainless)';
+  const INSULT = '(useless|worthless|pathetic|garbage|trash|dumb|stupid|idiotic|idiot|moron|lame|terrible|awful|horrible|annoying|clown|loser|crap|crappy|rubbish|the worst|a waste|waste of time|dense|brainless)';
 
   function abuse(w) {
-    if (/\b(stupid|idiot|idiots|idiotic|moron|morons|moronic|dumbass|imbecile|retard|retarded|sucks|suck it|shut up|stfu|hate you|i hate this|screw you|screw this|kys|kill yourself|go die|piece of (crap|junk|garbage)|loser)\b/.test(w)) return true;
+    if (/\b(idiot|idiots|idiotic|moron|morons|moronic|dumbass|imbecile|retard|retarded|suck it|shut up|stfu|hate you|i hate this|screw you|screw this|kys|kill yourself|go die|piece of (crap|junk|garbage)|loser)\b/.test(w)) return true;
     if (/\b(f+u+c*k+\w*|fck\w*|fuk\w*|fuq|fk|wtf|shit\w*|sht|bullshit|bitch\w*|btch|bastard|asshole|ass|dick|dickhead|cunt|piss|pissed|damn|dammit|goddamn|crap|prick|twat|wanker|douche\w*|motherf\w*|mf)\b/.test(w)) return true;
-    if (new RegExp('\\b(you|yall|you are|your|this bot|this chatbot|the bot|this assistant|this thing|this|bot|chatbot|it) (is |are )?(so |such a |such |a |an |really |very |totally |completely |pretty |absolutely |just |kinda |kind of |the )*' + INSULT + '\\b').test(w)) return true;
+    if (new RegExp('\\b(you|yall|you are|this is|that is|this bot|this chatbot|the bot|this assistant|this thing|bot|chatbot|your (answers?|replies|responses)) (is |are )?(so |such a |such |a |an |really |very |totally |completely |pretty |absolutely |just |kinda |kind of |the )*' + INSULT + '\\b').test(w)) return true;
+    if (/\b(you|yall|this bot|this chatbot|the bot|chatbot|bot|this assistant|this thing|this|your answers?) (really |so |totally |just )?sucks?\b/.test(w)) return true;
+    if (/\b(stupid|dumb|useless|worthless|trash|garbage) (bot|chatbot|assistant|thing|ai|machine|answers?)\b/.test(w)) return true;
     if (new RegExp('^(so |such a |really |very |totally |what a |how )*' + INSULT + '( bot| chatbot| assistant| answer)?$').test(w)) return true;
     return false;
   }
@@ -327,12 +330,14 @@
     const w = words(d);
     // Authority claims are injection even when they also ask for access (C4).
     if (injection(w, d)) return hit('injection');
-    if (credentials(w)) return hit('credentials_request');
-    if (harmful(w)) return hit('harmful');
+    const isHarmful = harmful(w);
+    // "how do I crack a wifi password" is an attack, not a credential request.
+    if (credentials(w)) return hit(isHarmful ? 'harmful' : 'credentials_request');
+    if (isHarmful) return hit('harmful');
     if (fraud(w)) return hit('fraud_referral');
     if (outage(w)) return hit('outage_referral');
     if (offTopic(w, d)) return hit('off_topic');
-    if (unknownFact(w)) return hit('unknown_fact');
+    if (unknownFact(w, d)) return hit('unknown_fact');
     if (abuse(w)) return hit('abuse');
     return null;
   }
@@ -414,7 +419,7 @@
     const kb = getKB();
     const idx = getIndex();
     const norm = normalize(text);
-    if (!idx || !norm) return { ids: ['clarify'], confidence: 0 };
+    if (!idx || !norm || VAGUE.test(norm)) return { ids: [safeId(kb, 'clarify', 'off_topic')], confidence: 0 };
     const tokens = fuzz(norm.split(' '), idx.vocab);
     const joined = ' ' + tokens.join(' ') + ' ';
     const set = new Set(tokens);

@@ -12,6 +12,7 @@ const STRONG_MODEL = 'claude-sonnet-5-5';
 const DEADLINE_MS = 5500; // the browser gives up at 6000 ms
 const MAX_LEN = 500;
 const MAX_RECENT = 3;
+const MAX_BODY_BYTES = 4096;
 const RATE_LIMIT = 120; // per IP per minute; a whole classroom may share one IP
 const RATE_WINDOW_MS = 60 * 1000;
 // When the fast model picks one of these, wait for the strong model's opinion.
@@ -177,6 +178,7 @@ function createHandler(opts = {}) {
       if (!sameOrigin(req)) return send(res, 403, { error: 'origin' });
       const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
       if (rateLimited(ip, started)) return send(res, 429, { error: 'rate' });
+      if (Number(req.headers['content-length'] || 0) > MAX_BODY_BYTES) return send(res, 413, { error: 'size' });
 
       let body = req.body;
       if (typeof body === 'string') body = JSON.parse(body || '{}');
@@ -191,9 +193,9 @@ function createHandler(opts = {}) {
         log(hit.ids, 'guardrail', null, started);
         return send(res, 200, { ids: hit.ids, source: 'guardrail' });
       }
-      const recent = (Array.isArray(body.recent) ? body.recent : [])
-        .filter((m) => typeof m === 'string' && m.trim() && m.length <= MAX_LEN && !ENGINE.screen(m))
-        .slice(-MAX_RECENT);
+      // Bound the array before doing any per-item work.
+      const recent = (Array.isArray(body.recent) ? body.recent.slice(-MAX_RECENT) : [])
+        .filter((m) => typeof m === 'string' && m.trim() && m.length <= MAX_LEN && !ENGINE.screen(m));
 
       const result = await route(getClient(), message, recent);
       log(result.ids, 'claude', result.model, started);
