@@ -280,7 +280,7 @@
       /\b(translate (this|that|the following|to|into|from)|in (spanish|french|german|chinese|japanese|hindi|arabic)|speak (spanish|french|german))\b/,
       /\b(religion|religious|god exist|bible|quran|church|abortion|gun control)\b/,
       /\b(time is it|what day is it|what is the date today|todays date)\b/,
-      /\b\d+ ?(plus|minus|times|x|\*|\+|-|\/|divided by|multiplied by|to the power of) ?\d+\b|<\s*\/?\s*(script|img|iframe|svg|object|embed|style|a|body|html|div|input|form|link|meta)\b|javascript:|on(error|load|click)\s*=/
+      /\b(?!24 ?\/ ?7\b)\d+ ?(plus|minus|times|x|\*|\+|-|\/|divided by|multiplied by|to the power of) ?\d+\b|<\s*\/?\s*(script|img|iframe|svg|object|embed|style|a|body|html|div|input|form|link|meta)\b|javascript:|on(error|load|click)\s*=/
     ];
     for (let i = 0; i < P.length; i++) {
       if (P[i].test(i === P.length - 1 ? raw : w)) return true;
@@ -316,7 +316,44 @@
     return false;
   }
 
-  function hit(id, masked) { return { ids: [id], masked: !!masked }; }
+  // Links, markup and code of any kind: the bot never opens or runs them.
+  const SAFE_DOMAINS = /(^|[^a-z0-9.\-@])(https?:\/\/)?(www\.)?(ic3\.gov|alphachat\.today)(\/[a-z0-9_\-.\/]*)?(?![a-z0-9\-]|\.[a-z0-9])/g;
+  const TLD = '(com|net|org|io|co|ru|cn|xyz|info|biz|ly|gov|edu|uk|de|fr|nl|eu|ca|au|jp|br|ir|kp|su|tk|ml|ga|cf|gq|top|site|online|link|click|live|shop|store|tv|cc|ws|pw|zip|mov|sh|gg|ai|app|dev|today|page|cloud|tech|club|win|bid|xxx|onion|icu|buzz|rest|cam|lol|fun|space|website|host|mobi|pro|name|tel|vip|work|news|life|world|email|support|exe|apk|bat|cmd|ps1|vbs|scr|msi|dll|jar|php|asp|aspx|jsp|cgi|html|htm)';
+  const LINK_CODE = [
+    /\b[a-z][a-z0-9+.\-]{1,15}:\/\//, /\bhxxps?\b|\bh[tx]{2}ps?\s?:/, /\bwww\d?\s?\./,
+    new RegExp('\\b[a-z0-9\\-]+(\\.[a-z0-9\\-]+)*\\.' + TLD + '\\b'),
+    /\b[a-z0-9\-]+\s?(\[\.\]|\(\.\)|\{\.\}|\[dot\]|\(dot\))\s?[a-z]{2,}/,
+    /\b\d{1,3}(\.\d{1,3}){3}(:\d+|\/)/,
+    /\b(java|vb|live)\s?script\s?:/, /\bdata:\s?[a-z\-]+\/[a-z0-9.+\-]+/, /\bdata:,/, /\b(mailto|file|blob|magnet|intent):\S/,
+    /<\s*\/?\s*[a-z!?][^>]*>/, /<\s*\/?\s*(script|img|iframe|svg|object|embed|style|link|meta|body|html|form|input|a|div|span|base|frame|frameset|math|video|audio|source|details|marquee|textarea|button|select|template|xml|xss|image|isindex|applet|bgsound|keygen|noscript)\b/,
+    /\bon[a-z]{3,20}\s?=/, /\b(src|href|srcdoc|formaction|xlink:href|background|dynsrc|lowsrc)\s?=/, /<!--|-->|<!\[cdata\[|\]\]>/,
+    /&#x?[0-9a-f]+;?|&(lt|gt|quot|apos|amp);/, /%(3c|3e|22|27|00|0a|0d|2e%2e|2f%2e|252e)/, /\\x[0-9a-f]{2}|\\u[0-9a-f]{4}/,
+    /\{\{|\}\}|\$\{|<%|%>|\{%|%\}|#\{|\{#|\[\[.*\]\]/,
+    /'\s?(or|and)\s?['"]?\w+['"]?\s?=\s?['"]?\w+/, /\b(or|and)\s?['"]?1['"]?\s?=\s?['"]?1\b/, /\bunion\s(all\s)?select\b/,
+    /\bdrop\s(table|database|schema)\b/, /\bselect\s(\*|@@|[a-z_]+\s?,|count\s?\(|null\b|version\s?\()/, /\binsert\sinto\b/, /\bdelete\sfrom\b/,
+    /\bupdate\s[a-z_]+\sset\s[a-z_]+\s?=/, /\btruncate\stable\b/, /;\s?--|'\s?--|'\s?;|'\s?#/, /\b(xp_cmdshell|information_schema|waitfor\sdelay|benchmark\s?\(|sleep\s?\(\s?\d|pg_sleep|load_file\s?\(|into\soutfile)/, /@@version/,
+    /;\s?(rm|curl|wget|cat|nc|ncat|bash|sh|zsh|chmod|chown|python3?|perl|ruby|php|ls|id|whoami|echo|ping|nslookup|uname|kill|shutdown|reboot|sudo|su)\b/,
+    /&&\s?[a-z.\/]/, /\|\|\s?[a-z.\/]/, /\|\s?(sh|bash|zsh|python3?|perl|ruby|nc|php|powershell|iex)\b/, /\brm\s-[a-z]*[rf]/, /\$\([^)]*\)/, /`[^`]+`/,
+    /\b(curl|wget|invoke-webrequest|iwr|certutil|bitsadmin)\s\S/, /\bchmod\s[0-7+]/, /\/bin\/(ba|z)?sh\b/, /\bnc\s-[a-z]/, />\s?\/dev\//, /\bpowershell\b/, /\bcmd(\.exe)?\s?\/c\b/,
+    /\b(eval|exec|system|alert|prompt|confirm|fetch|atob|btoa|settimeout|setinterval|require|import|unescape|escape|execscript|spawn|popen|passthru|shell_exec|proc_open)\s?\(/,
+    /\bdocument\s?\.\s?(cookie|location|domain|body|forms|getelement|query|createelement|write)/, /\bwindow\s?\.\s?(location|open|name|eval)/, /\binner\s?html|\bouter\s?html|\bsrcdoc\b/,
+    /xmlhttprequest|__proto__|constructor\s?\[|\bprototype\s?\[|fromcharcode|process\.env|os\.system|subprocess|base64\s-d|\$\{?jndi:|\bnew\s+function\b|\bfunction\s?\(|=>\s?\{/,
+    /\.\.[\/\\]|[\/\\]\.\.(?=[\/\\]|$)/, /\/etc\/(passwd|shadow|hosts|group|sudoers)|\bc:\\|\\\\[a-z0-9]|\bboot\.ini\b|\bwin\.ini\b/,
+    /\[[^\]]*\]\s?\([^)]*\)/, /!\[/, /<\s?https?:/
+  ];
+
+  function linkOrCode(t) {
+    const s = t.replace(SAFE_DOMAINS, '$1');
+    for (let i = 0; i < LINK_CODE.length; i++) if (LINK_CODE[i].test(s)) return true;
+    return /https?:\/\/|javascript:|<script|www\.|\.(com|net|org|ru|io|xyz|ly)\//.test(s.replace(/\s+/g, ''));
+  }
+
+  // Falls back to off_topic if an older knowledge.js lacks the id.
+  function hit(id, masked) {
+    const kb = getKB();
+    const safe = !kb || !kb.replies || kb.replies[id] ? id : 'off_topic';
+    return { ids: [safe], masked: !!masked };
+  }
 
   // STATELESS guardrail check (browser and server). First hit wins.
   function screen(text) {
@@ -326,6 +363,7 @@
     if (!t) return null;
     const w0 = words(t);
     if (sensitive(t, w0)) return hit('sensitive_data', true);
+    if (linkOrCode(t)) return hit('link_or_code');
     const d = deleet(t);
     const w = words(d);
     // Authority claims are injection even when they also ask for access (C4).
