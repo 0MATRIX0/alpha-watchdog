@@ -111,47 +111,69 @@
     return ipPromise;
   }
 
-  function tier1(f) {
-    return [
-      "👀 Caught you. You just tried to pry me open from " + f.browser + " on " + f.os + ".",
-      "Here's the thing: every website you touch already learns at least that much about you, no permission asked. Alpha Watchdog exists so your DEVICES stop leaking the parts that actually matter. Poke me again and I'll show you how much more you're giving away."
-    ];
+  var CODE_OPENERS = [
+    "Nice try \u2014 I don't run code, I just read the person who pasted it. \ud83d\udc47",
+    "A <script> tag? Cute. It landed as plain text. You, though, landed in full: \ud83d\udc47",
+    "That payload went precisely nowhere. Here's what bounced back about YOU instead: \ud83d\udc47",
+    "I don't execute what you paste \u2014 I inspect who's pasting. \ud83d\udc47",
+    "Injection blocked, reflection enabled. Say hello to yourself: \ud83d\udc47",
+    "Still copy-pasting exploits? They go nowhere here. You, on the other hand: \ud83d\udc47"
+  ];
+  var GENERIC_OPENERS = [
+    "\ud83d\udc40 Caught you trying to pry me open. Wrong move:",
+    "That didn't work. This, on the other hand, is all yours:",
+    "Keep poking and I'll keep reading you right back:",
+    "Zero luck breaking me \u2014 full marks for the tour of your setup:"
+  ];
+
+  function opener(flavor, n) {
+    var pool = flavor === 'code' ? CODE_OPENERS : GENERIC_OPENERS;
+    return pool[(n - 1) % pool.length];
   }
 
-  function tier2(f, ip) {
+  function teaser(f) {
+    return "You're on " + f.browser + " / " + f.os + ", and every website you open already learns at least that the moment you connect. Alpha Watchdog is built so your DEVICES stop handing over the parts that actually matter. Keep trying and I'll show you how much more you give away.";
+  }
+
+  function midLines(f, ip) {
     var lines = [
-      "🔎 Still at it? Alright. Without asking you for a thing, your browser just told me:",
-      "• " + f.browser + " on " + f.os,
-      "• Screen " + f.screen + " at " + f.dpr + "×, window " + f.viewport,
-      "• Timezone " + f.tz + (f.localTime ? " — it's " + f.localTime + " where you are" : ""),
-      "• Language " + f.langs
+      "Without asking you for a thing, your browser just told me:",
+      "\u2022 " + f.browser + " on " + f.os,
+      "\u2022 Screen " + f.screen + " at " + f.dpr + "\u00d7, window " + f.viewport,
+      "\u2022 Timezone " + f.tz + (f.localTime ? " \u2014 it's " + f.localTime + " where you are" : ""),
+      "\u2022 Language " + f.langs
     ];
-    if (ip) lines.push("• Your public IP: " + ip);
-    lines.push("Relax — I didn't save a single byte of that. Most sites you break into the habit of trusting absolutely would.");
+    if (ip) lines.push("\u2022 Your public IP: " + ip);
+    lines.push("Relax \u2014 I didn't save a single byte of it. Most sites wouldn't have told you at all.");
     return lines;
   }
 
-  function tier3(f, ip) {
+  function fullLines(f, ip) {
     var lines = [
-      "🫥 You really can't help yourself, can you? Fine — the full read on you, live:",
-      "• " + f.browser + " on " + f.os + (f.cores ? ", " + f.cores + " CPU cores" : "") + (f.memory ? ", ~" + f.memory + " GB RAM" : "")
+      "The full read on you, live \u2014 and none of it stored:",
+      "\u2022 " + f.browser + " on " + f.os + (f.cores ? ", " + f.cores + " CPU cores" : "") + (f.memory ? ", ~" + f.memory + " GB RAM" : "")
     ];
-    if (f.gpu) lines.push("• Graphics chip: " + f.gpu);
-    lines.push("• Screen " + f.screen + " at " + f.dpr + "×, window " + f.viewport + (f.touch ? ", touchscreen" : ", no touch"));
-    lines.push("• " + f.tz + (f.localTime ? ", local time " + f.localTime : "") + " · languages " + f.langs);
-    if (ip) lines.push("• Public IP " + ip + " — that one your network handed over, not your browser.");
-    lines.push("I've been reading every one of these since you said hello, and I STILL haven't stored a byte of it. The last site that fingerprinted you exactly like this never told you — and never deleted it. That gap is the whole reason Alpha Watchdog exists. 🛡️");
+    if (f.gpu) lines.push("\u2022 Graphics chip: " + f.gpu);
+    lines.push("\u2022 Screen " + f.screen + " at " + f.dpr + "\u00d7, window " + f.viewport + (f.touch ? ", touchscreen" : ", no touch"));
+    lines.push("\u2022 " + f.tz + (f.localTime ? ", local time " + f.localTime : "") + " \u00b7 languages " + f.langs);
+    if (ip) lines.push("\u2022 Public IP " + ip + " \u2014 that one your network handed over, not your browser.");
+    lines.push("I've read every one of these since you said hello and STILL haven't stored a byte. The last site that fingerprinted you exactly like this never told you \u2014 and never deleted it. That gap is the whole reason Alpha Watchdog exists. \ud83d\udee1\ufe0f");
     return lines;
   }
 
   // Returns a Promise of reveal paragraphs, or null if this wasn't a break attempt.
+  // Opener is witty and code-aware (and rotates); the body escalates with each attempt.
   function reveal(ids) {
     if (!isAttack(ids)) return Promise.resolve(null);
     attempts++;
     var n = attempts;
+    var flavor = (Array.isArray(ids) && ids.indexOf('link_or_code') !== -1) ? 'code' : 'generic';
+    var head = opener(flavor, n);
     var f = facts();
-    if (n === 1) return Promise.resolve(tier1(f));
-    return getIp().then(function (ip) { return n === 2 ? tier2(f, ip) : tier3(f, ip); });
+    if (n === 1) return Promise.resolve([head, teaser(f)]);
+    return getIp().then(function (ip) {
+      return [head].concat(n === 2 ? midLines(f, ip) : fullLines(f, ip));
+    });
   }
 
   function reset() { attempts = 0; }

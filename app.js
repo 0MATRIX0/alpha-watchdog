@@ -396,6 +396,91 @@
     if (stick) scrollToEnd();
   }
 
+  /* ---------- Simulated "scan my network" demo ---------- */
+
+  function deviceRow(d) {
+    var row = el('div', 'scan-dev scan-' + d.status);
+    row.appendChild(el('span', 'scan-mark', d.status === 'alert' ? '⚠' : (d.status === 'new' ? '◔' : '✓')));
+    row.appendChild(el('span', 'scan-name', d.name));
+    row.appendChild(el('span', 'scan-note', d.note));
+    return row;
+  }
+
+  function scanChips() {
+    var chipRow = el('div', 'chips');
+    chipRow.setAttribute('role', 'group');
+    chipRow.setAttribute('aria-label', 'Suggested follow-up questions');
+    ['How does it work?', 'What is BADBOX 2.0?', 'Will it read my data?'].forEach(function (c) {
+      var b = el('button', 'chip', c);
+      b.type = 'button';
+      b.addEventListener('click', function () { submit(c, 'chip'); });
+      chipRow.appendChild(b);
+    });
+    return chipRow;
+  }
+
+  function alertCard(a) {
+    var card = el('div', 'scan-alert');
+    card.appendChild(el('div', 'scan-alert-title', '⚠ ' + a.device + ' may be hijacked'));
+    var dl = el('div', 'scan-detail');
+    [['What happened', a.what], ['Why it matters', a.why], ['What to do', a.fix]].forEach(function (p) {
+      dl.appendChild(el('span', 'scan-k', p[0]));
+      dl.appendChild(el('span', 'scan-v', p[1]));
+    });
+    card.appendChild(dl);
+    var btn = el('button', 'scan-btn', 'Isolate ' + a.device);
+    btn.type = 'button';
+    btn.addEventListener('click', function () {
+      var done = el('div', 'scan-done');
+      done.appendChild(el('p', 'msg-p', a.done));
+      card.replaceChild(done, btn);
+      card.classList.add('resolved');
+      card.appendChild(scanChips());
+      if (nearBottom()) scrollToEnd();
+    });
+    card.appendChild(btn);
+    return card;
+  }
+
+  async function runScan(job) {
+    if (job.session !== session) return;
+    var shell = job.shell, s = job.scenario;
+    showTyping(shell);
+    await wait(450);
+    if (job.session !== session) return;
+
+    var wrap = el('div', 'msg-content scan');
+    wrap.appendChild(el('div', 'scan-label', '🔍 Live demo scan'));
+    var head = el('p', 'msg-p scan-head', 'Scanning your home network…');
+    wrap.appendChild(head);
+    var list = el('div', 'scan-list');
+    wrap.appendChild(list);
+    clear(shell.body);
+    shell.body.appendChild(wrap);
+    scrollToEnd();
+
+    for (var i = 0; i < s.devices.length; i++) {
+      if (job.session !== session) return;
+      await wait(mqReduce.matches ? 0 : 430);
+      list.appendChild(deviceRow(s.devices[i]));
+      if (nearBottom()) scrollToEnd();
+    }
+    await wait(mqReduce.matches ? 0 : 400);
+    if (job.session !== session) return;
+
+    head.textContent = s.summary;
+    head.classList.add('done');
+    if (s.alert) {
+      wrap.appendChild(alertCard(s.alert));
+    } else {
+      var ok = el('div', 'scan-clear');
+      ok.appendChild(el('p', 'msg-p', s.allClear));
+      wrap.appendChild(ok);
+      wrap.appendChild(scanChips());
+    }
+    if (nearBottom()) scrollToEnd();
+  }
+
   function renderError(shell) {
     var text = textFor('error', 'claude') || FALLBACK_ERROR;
     clear(shell.body);
@@ -528,6 +613,18 @@
       if (!text.trim()) return;
       r = { action: 'error' };
     }
+    // Simulated product demo: "scan my network" runs a scripted scan, not the Q&A pipeline.
+    if (text.trim() && window.AW_SCAN && window.AW_SCAN.isScan(text)) {
+      if (origin === 'input') { els.input.value = ''; updateComposer(); }
+      startConversation();
+      addUserBubble(text, false);
+      var scanShell = reserveReply();
+      var scanJob = { shell: scanShell, scenario: window.AW_SCAN.next(), session: session };
+      queue = queue.then(function () { return runScan(scanJob); }).catch(function () {});
+      if (origin === 'input' || !mqCoarse.matches) els.input.focus();
+      return;
+    }
+
     if (r.action === 'ignore') return;
     if (r.state) state = r.state;
 
@@ -638,6 +735,7 @@
     queue = Promise.resolve();
     state = freshState();
     if (window.AW_PRANK) window.AW_PRANK.reset();
+    if (window.AW_SCAN) window.AW_SCAN.reset();
     started = false;
     clear(els.thread);
     els.welcome.hidden = false;

@@ -352,7 +352,7 @@
       [Q.how, Q.router]),
     system('link_or_code', 'safety', true,
       "Message contains a URL/link, HTML, script tags, JavaScript, SQL/command/template injection, or other code instead of a real question.",
-      "For your safety, I don't open links or run code. I can answer questions about Alpha Watchdog, like how it works or how it protects your privacy.",
+      "Nice try \u2014 but I don't open links or run code. That's rather the point of a security product. I can tell you how Alpha Watchdog works, or how it keeps your devices safe.",
       SYSTEM_FOLLOWUPS),
     system('too_long', 'safety', false,
       "Client only: the message is over 500 characters.",
