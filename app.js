@@ -382,6 +382,20 @@
     if (stick) scrollToEnd();
   }
 
+  // The gotcha reveal: animated like a normal reply, but no tag, no chips, and it is
+  // deliberately NOT registered in rowData, so it stays out of the downloadable
+  // transcript (it holds the visitor's own data and is ephemeral theater).
+  async function revealBubble(shell, paras, sess) {
+    await reveal(shell.body, paras, sess);
+    if (sess !== session) return;
+    var stick = nearBottom();
+    var wrap = el('div', 'msg-content');
+    paras.forEach(function (t) { wrap.appendChild(el('p', 'msg-p', t)); });
+    clear(shell.body);
+    shell.body.appendChild(wrap);
+    if (stick) scrollToEnd();
+  }
+
   function renderError(shell) {
     var text = textFor('error', 'claude') || FALLBACK_ERROR;
     clear(shell.body);
@@ -475,6 +489,18 @@
         var notice = assistantShell();
         shell.row.parentNode.insertBefore(notice.row, shell.row.nextSibling);
         await renderReply(notice, ['repeat_notice'], result.source, job.session);
+      }
+
+      // Demo "gotcha": on a break attempt, show the visitor what they already leak.
+      if (result.source === 'guardrail' && window.AW_PRANK && job.session === session) {
+        var lines = null;
+        try { lines = await window.AW_PRANK.reveal(result.ids); } catch (e) { lines = null; }
+        if (lines && lines.length && job.session === session) {
+          var rv = assistantShell();
+          rv.row.className = 'msg-bot reveal-row';
+          els.thread.appendChild(rv.row);
+          await revealBubble(rv, lines, job.session);
+        }
       }
     } catch (err) {
       if (job.session !== session) return;
@@ -611,6 +637,7 @@
     session++;
     queue = Promise.resolve();
     state = freshState();
+    if (window.AW_PRANK) window.AW_PRANK.reset();
     started = false;
     clear(els.thread);
     els.welcome.hidden = false;

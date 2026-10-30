@@ -335,3 +335,18 @@ button:disabled { cursor: default; }
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
   .dots i { opacity: .7; }
 }
+
+/* ---------- "Gotcha" reveal bubble (demo prank on break attempts) ---------- */
+.reveal-row .msg-body {
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+  border: 1px solid color-mix(in srgb, var(--warn-ink) 28%, transparent);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-top: 2px;
+}
+.reveal-row .avatar { background: var(--warn-bg); }
+.reveal-row .avatar .logo-shield { fill: var(--warn-ink); }
+.reveal-row .msg-p { margin: 0 0 8px; }
+.reveal-row .msg-p:first-child { font-weight: 650; }
+.reveal-row .msg-p:last-child { margin-bottom: 0; }
