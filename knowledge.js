@@ -7,10 +7,10 @@
 
   // Team Alpha fills these in. Names and roles only, never personal details.
   const TEAM = [
-    { name: 'Sujith Bellam', role: '[add role]' },
-    { name: 'Kevin', role: '[add role]' }
+    { name: 'Sujith Bellam', role: 'product and engineering lead' },
+    { name: 'Kevin', role: 'research and data science lead' }
   ];
-  const CONTACT_EMAIL = '[add team email here]';
+  const CONTACT_EMAIL = 'team@alphachat.today';
 
   // "Sujith Bellam and Kevin"; a filled-in role shows as "Name (role)".
   function teamNames() {
@@ -275,7 +275,7 @@
 
     answer('team',
       "Who built Alpha Watchdog: the team members, names and roles, founders, 'who built this', 'who made this'. NOT contact details (→ contact), NOT why the team chose cybersecurity or its research (→ why_cyber), NOT personal details about members (→ unknown_fact).",
-      'Alpha Watchdog was built by Team Alpha (DS 617, Campbellsville University). Team Alpha is ' + teamNames() + ', with more members to be added.',
+      'Alpha Watchdog was built by Team Alpha (DS 617, Campbellsville University). Team Alpha is ' + teamNames() + '.',
       { built: 4, build: 3, made: 3, make: 2, created: 3, creators: 3, creator: 3, founders: 3, founder: 3, members: 3, member: 3, who: 2, team: 2, behind: 2, students: 2, roles: 2, sujith: 4, kevin: 4, people: 2 },
       ['who built alpha watchdog', 'who built alpha watchdog?', 'who built this', 'who built this?', 'who made this', 'who is on the team', 'who are the founders', 'who is team alpha', 'who is behind this', 'who are the team members'],
       [Q.contact, Q.whyCyber, Q.problem]),
