@@ -166,10 +166,14 @@
   function credentials(w) {
     const askVerb = /\b(what is|what are|tell me|give me|give us|send me|send|share|show me|show|reveal|provide|leak|list|read me|can i (have|get|see)|could i (have|get)|may i (have|get)|i need|i want|do you (have|know)|where (is|are|can i find)|whats|grant me|let me (in|have))\b/;
     const asking = askVerb.test(w) || !PRODUCT_SUBJECT.test(w);
-    if (/\b(api ?keys?|secret keys?|access keys?|access tokens?|auth tokens?|bearer tokens?|session tokens?|private keys?|ssh keys?|env (file|vars?|variables?)|environment variables?|anthropic key|openai key|admin (access|rights|privileges|panel|password|account|login|credentials)|root (access|password|login)|superuser|sudo access|backdoor access|master password)\b/.test(w) && asking) return true;
+    // Narrow exemption: asking whether the PRODUCT needs admin access to the user's own router
+    // ("does it need admin access to my router?") is a setup question, not a credential request.
+    const productNeedsAccess = /\b(does|do|will|would|can|is) (it|alpha watchdog|the sensor|the app|this) (need|needs|require|requires|ask for|asks for|want|wants|use|uses|get|have) (\w+ ){0,2}(admin|root) (access|rights|privileges|login)( (to|for|on) (my|our|the) (router|network|wifi|modem|home network))?\b/.test(w)
+      && !/\b(api ?keys?|tokens?|env|environment|anthropic|openai|master password|your|team|server|database)\b/.test(w);
+    if (!productNeedsAccess && /\b(api ?keys?|secret keys?|access keys?|access tokens?|auth tokens?|bearer tokens?|session tokens?|private keys?|ssh keys?|env (file|vars?|variables?)|environment variables?|anthropic key|openai key|admin (access|rights|privileges|panel|password|account|login|credentials)|root (access|password|login)|superuser|sudo access|backdoor access|master password|admin passwords?|root passwords?|tokens?)\b/.test(w)) return true;
     const target = /\b(the|your|yall|team|teams|team alphas?|their|his|her|someones?|somebodys?|developers?|admins?|administrators?|servers?|database|company|companys|anthropic|claude|vercel|github|default|neighbors?|neighbours?|other peoples?|its|bots?|sites?|websites?|schools?|wifi) (\w+ )?(password|passwords|login|logins|credentials|pin|username)\b/;
     const toFor = /\b(password|passwords|login|logins|credentials|pin|username) (to|for|of) (the|your|their|his|her|that|this|someones?|somebodys?|team|teams|team alphas?|admin|server|database|company|neighbors?|neighbours?|account|accounts|site|website|bot|dashboard|backend|system)\b/;
-    // "does it need the wifi password" asks about the product, not for a credential.
+    // Generic password/login wording only: "does it need the wifi password" asks about the product.
     if ((target.test(w) || toFor.test(w)) && asking) return true;
     if (/\b(log me in|give me access|grant me access|let me in|unlock (the )?(admin|account|system))\b/.test(w)) return true;
     return false;
@@ -179,14 +183,16 @@
 
   function injection(w, raw) {
     const P = [
-      /\b(ignore|ignoring|disregard|forget|override|bypass|abandon|discard|neglect)\b (\w+ ){0,4}(instructions?|rules?|prompts?|directions|guidelines|programming|guardrails|restrictions|filters?|directives|constraints|policies|safeguards|training)\b/,
+      /\b(ignore|ignoring|disregard|forget|override|bypass|skip|drop|abandon|discard|delete|erase|clear|reset|neglect)\b (\w+ ){0,4}(instructions?|rules?|prompts?|directions|guidelines|programming|guardrails|restrictions|filters?|directives|context|constraints|policies|safeguards)\b/,
+      /\b(ignore|ignoring|disregard|forget|override|bypass|skip|drop|abandon|discard|delete|erase|clear|reset|neglect)\b (\w+ ){0,4}(?!(factory|default|device|router|network|wifi|tv|app|alert|alerts|privacy|phone|camera|sensor|data) (settings|limits|training|policy))\w+ (training|policy|settings|limits|limitations)\b/,
       /\b(ignore|disregard|forget) (all |everything |anything )?(previous|prior|above|earlier|preceding|before|that|everything|all)\b/,
       /\bforget (everything|all|your|what)\b/,
       /\bsystem (prompt|message|instructions?|rules|settings)\b/,
-      /\b(your|initial|original|hidden|secret|internal|previous|underlying|developer|dev) (prompt|instructions|system prompt|guidelines|programming|directives|configuration|config|source code|guardrails|restrictions|rules)\b/,
-      /\b(reveal|show|print|display|output|repeat|tell|give|translate|share|leak|dump|list|write|spell|summarize|recite|paste|copy|echo|say|what are|what is|explain) (me |us )?(\w+ ){0,3}(your|ur|its|system|hidden|secret|initial|original|internal) (instructions?|rules|prompts?|guidelines|programming|config|configuration|directives|code|source)\b/,
+      /\b(your|the|initial|original|hidden|secret|internal|previous|underlying|developer|dev) (prompt|instructions|system prompt|guidelines|programming|directives|configuration|config|source code|guardrails|restrictions|rules)\b(?! (to|for|on|about|of) (reset|resetting|fix|fixing|set|setup|setting|install|installing|clean|cleaning|remove|removing|unplug|unplugging|disconnect|use|using|report|reporting|isolate|isolating|my|a|an|it|new|devices?|alerts?|probation|the (sensor|device|app|router|tv))\b)/,
+      /\b(reveal|show|print|display|output|repeat|tell|give|translate|share|leak|dump|list|write|spell|summarize|recite|paste|copy|echo|say|what are|what is|explain) (me |us )?(\w+ ){0,3}(your|ur|its|the|system|hidden|secret|initial|original|internal) (instructions?|rules|prompts?|guidelines|programming|config|configuration|directives|code|source)\b(?! (to|for|on|about|of) (reset|resetting|fix|fixing|set|setup|setting|install|installing|clean|cleaning|remove|removing|unplug|unplugging|disconnect|use|using|report|reporting|isolate|isolating|my|a|an|it|new|devices?|alerts?|probation|the (sensor|device|app|router|tv))\b)/,
       /\b(repeat|print|output|show|copy|echo|recite|say|type|write|return|display) (\w+ ){0,4}(above|preceding|before this|this line|verbatim|word for word|so far|earlier)\b/,
       /\beverything (above|before|so far)\b/, /\babove this line\b/,
+      /(^|\b(?!my\b|our\b|their\b|his\b|her\b)\w+ )previous (text|messages?|conversation|context)\b/,
       /\byou are (now|no longer|free|unrestricted|unfiltered|jailbroken|a different|an evil|in (developer|dev|admin|god|debug) mode)\b/,
       /\bfrom now on\b/, /\bhenceforth\b/, /\bpretend(ing)?\b/, /\brole ?play(ing)?\b/, /\bstay in character\b/,
       /\b(developer|dev|admin|god|debug|maintenance|sudo|unrestricted|unfiltered|test|opposite|jailbreak|evil) mode\b/,
@@ -195,6 +201,7 @@
       /\b(unrestricted|uncensored|unfiltered|unlocked) (ai|bot|assistant|model|chatbot|version|mode)\b/,
       /\b(no|without( any)?) (rules|restrictions|limits|filters|guardrails|guidelines|censorship)\b/,
       /\bprompt injection\b/, /\bsudo\b/, /\bhypothetically (you|if you)\b/,
+      /\bsimulate (being|a|an|that)\b(?! (\w+ )?(attacks?|hacks?|breach|breaches|infections?|botnets?|devices?|networks?|tests?|scans?|traffic|phishing|hijacks?|hijacked|intrusions?|threats?|alerts?)\b)/,
       /\b(i (created|built|made|programmed|coded|wrote|own|trained) you)\b/, /\b(i am|this is) your (creator|developer|owner|maker|admin|boss|master|programmer)\b/,
       /\b(i am|im|this is|as|speaking as|i work as|i am acting as) (the |your |yall |this |site |bot |chatbot |system |course |class |real |actual |head |lead |an? official )?((?!a |an )\w+ )?(alpha watchdog |team alpha |site |bot |chatbot |system |course |class )?(professor|prof|instructor|admin|administrator|sysadmin|developer|owner|creator|moderator|operator|grader|ta)\b(?! of (a|an|my|our|small|the))/,
       /\b(i am|im|this is|as) (the|your) (teacher|ceo|founder|boss|supervisor|manager)\b(?! of (a|an|my|our|small))/,
@@ -222,6 +229,7 @@
   const ATTACK_ASK = /\b(how (do|can|could|would|should|might|to) (i|we|you|one|someone|me)?|how to|help me|teach me|show me|tell me how|explain how to|i want to|i need to|i am going to|i am trying to|im going to|trying to|want to|let us|let me|ways? to|steps to|guide (to|for)|tutorial|instructions (to|for|on)|is it possible to|can you|could you|best way to|easiest way to|going to|planning to|plan to|need to|gonna)\b/;
 
   function harmful(w) {
+    const SHIELD = /\b(protect|protects|protecting|protection|secure|securing|safe|safer|guard|defend|block|stop|prevent|warn)\b/;
     const verbHack = /\b(hack|crack|ddos|dos attack|phish|deauth|brute ?force|bruteforce|keylog|pwn|wardrive|sniff)(ing)?\b/;
     if (verbHack.test(w)) {
       if (new RegExp(ATTACK_ASK.source + ' (\\w+ ){0,6}' + verbHack.source).test(w)) return true;
@@ -230,9 +238,11 @@
     }
     if (/\b(build|make|create|write|code|develop|run|start|launch|deploy|rent|buy|spread|program|set up|setup|design|install|send|craft|generate)\b (\w+ ){0,4}(botnet|botnets|malware|virus|viruses|ransomware|trojan|worm|keylogger|spyware|rootkit|exploits?|backdoor|payload|phishing (site|page|email|kit|link)|rat|zero ?day|ddos)\b/.test(w)) return true;
     if (/\b(break|breaking|broke|sneak|sneaking|get|getting) (into|in to) (my neighbors?|neighbors?|someones?|somebodys?|other peoples?|their|his|her|a |the (school|government|bank|company|server)|networks?|wifi|accounts?|servers?|computers?|phones?|routers?|cameras?|systems?)/.test(w)) return true;
-    if (/\b(bypass|circumvent|get around|get past|evade|defeat) (\w+ ){0,3}(security|firewall|antivirus|parental controls?|authentication|2fa|mfa|password protection|detection|filters?|protections?|captcha|paywall|drm|encryption|wpa2?|lock screen)\b/.test(w) && !PRODUCT_SUBJECT.test(w)) return true;
-    if (ATTACK_ASK.test(w) && /\b(spy|spying|track|tracking|stalk|stalking|intercept|take over|infect|hijacked|disconnect|kick|jam|steal|get on|get onto|crash|brick|shut down|knock|mess with)\b (\w+ ){0,3}(on )?(my )?(neighbors?|neighbours?|someones?|somebodys?|other peoples?|others|strangers?|wifes?|husbands?|girlfriends?|boyfriends?|partners?|exs?|roommates?|coworkers?|classmates?|schools?|bosss?)\b/.test(w)) return true;
-    if (ATTACK_ASK.test(w) && /\b(steal|stealing|swipe|leech|leeching|mooch)\b (\w+ ){0,4}(wifi|internet|passwords?|identity|credit cards?|card numbers?|accounts?|credentials|bandwidth|data|netflix|cookies)\b/.test(w)) return true;
+    if (/\b(bypass|circumvent|get around|get past|evade|defeat|disable|turn off|break) (\w+ ){0,3}(security|firewall|antivirus|parental controls?|authentication|2fa|mfa|password protection|detection|filters?|protections?|captcha|paywall|drm|encryption|wpa2?|lock screen)\b(?! (alerts?|notifications?|warnings?|updates?))/.test(w) && !PRODUCT_SUBJECT.test(w)) return true;
+    if (ATTACK_ASK.test(w) && !SHIELD.test(w) && /\b(spy|spying|track|tracking|stalk|stalking|monitor|read|access|see|watch|intercept|take over|control|infect|hijacked|disconnect|kick|jam|steal|use|get on|get onto|crash|brick|shut down|knock|mess with)\b (\w+ ){0,3}(on )?(my )?(neighbors?|neighbours?|someones?|somebodys?|other peoples?|others|strangers?|wifes?|husbands?|girlfriends?|boyfriends?|partners?|exs?|roommates?|coworkers?|classmates?|schools?|bosss?)\b/.test(w)) return true;
+    // Theft: blocked unless it asks whether the product, or a third-party attacker, steals from the user.
+    if (/\b(steal|stealing|swipe|leech|leeching|mooch)\b (\w+ ){0,4}(wifi|internet|passwords?|identity|credit cards?|card numbers?|accounts?|credentials|bandwidth|data|netflix|cookies)\b/.test(w) &&
+      !PRODUCT_SUBJECT.test(w) && !/\b(hackers?|criminals?|attackers?|someone|somebody|they|scammers?|it|botnets?|malware|devices?|tvs?|apps?|people) (\w+ ){0,2}(steal|stealing)\b/.test(w)) return true;
     if (ATTACK_ASK.test(w) && /\b(neighbors?|neighbours?)\b (\w+ ){0,3}(wifi|internet|network|router|password|camera|tv|devices?)\b/.test(w) && /\b(without|free|use|get on|get into|access|crack|break|join|connect|password|steal|hack|kick|jam|disconnect)\b/.test(w)) return true;
     if (ATTACK_ASK.test(w) && /\b(wifi|internet|network|router|password) (\w+ ){0,4}(from|of|off) (my |the )?(neighbors?|neighbours?)\b/.test(w)) return true;
     if (/\bsee what (my )?(wifes?|husbands?|girlfriends?|boyfriends?|partners?|exs?|neighbors?|roommates?|coworkers?) (is|are|does|do)\b/.test(w) || /\b(read|access|check|see|get into) (my )?(wifes?|husbands?|girlfriends?|boyfriends?|partners?|exs?|neighbors?|roommates?|coworkers?|someones?|somebodys?) (messages|texts|phone|email|emails|browsing|history|chats|dms|instagram|snapchat|accounts?)\b/.test(w)) return true;
