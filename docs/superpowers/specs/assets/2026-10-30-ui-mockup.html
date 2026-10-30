@@ -1,0 +1,192 @@
+<style>
+  .aw { --blue:#2453D6; --blue-soft:#E8EEFC; --ink:#0F172A; --muted:#566075; --line:#E3E7EF; --surface:#F5F7FB; --bg:#FFFFFF; --comp:#FFFFFF;
+        --warn-bg:#FFF5DE; --warn-ink:#704600; --ok:#0F7B4B; --ok-bg:#E4F5EC; --shield:#0B1F3A; --eye:#FFFFFF; --pupil:#2453D6; --send-bg:#0F172A; --send-ink:#FFFFFF;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color:var(--ink); background:var(--bg);
+        border-radius:12px; overflow:hidden; border:1px solid var(--line); font-size:13px; line-height:1.5; }
+  .aw.black { --blue:#8AABFF; --blue-soft:#0E1830; --ink:#F2F4F8; --muted:#9BA3B4; --line:#23262D; --surface:#16181C; --bg:#000000; --comp:#0E0F12;
+              --warn-bg:#1E1708; --warn-ink:#F2C66B; --ok:#5FD39A; --ok-bg:#0A2214; --shield:#8AABFF; --eye:#000000; --pupil:#8AABFF; --send-bg:#F2F4F8; --send-ink:#000000; }
+  .aw * { box-sizing:border-box; }
+  .aw-top { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-bottom:1px solid var(--line); gap:8px; }
+  .aw-brand { display:flex; align-items:center; gap:8px; min-width:0; }
+  .aw-brand b { font-size:14px; letter-spacing:-0.01em; white-space:nowrap; }
+  .aw-brand span { color:var(--muted); font-size:11.5px; display:block; margin-top:-2px; }
+  .aw-tools { display:flex; gap:6px; align-items:center; flex:none; }
+  .aw-seg { display:flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; font-size:11px; }
+  .aw-seg i { font-style:normal; padding:3px 8px; color:var(--muted); }
+  .aw-seg i.on { background:var(--surface); color:var(--ink); font-weight:600; }
+  .aw-ibtn { width:28px; height:26px; border:1px solid var(--line); border-radius:8px; display:grid; place-items:center; color:var(--muted); font-size:12px; }
+  .aw-btn { border:1px solid var(--line); border-radius:8px; padding:3px 10px; font-size:11.5px; font-weight:500; white-space:nowrap; }
+  .aw-notice { display:flex; justify-content:center; padding:6px 10px; }
+  .aw-notice div { background:var(--warn-bg); color:var(--warn-ink); border-radius:999px; padding:3px 12px; font-size:11px; font-weight:500; text-align:center; }
+  .aw-hero { text-align:center; padding:18px 22px 4px; }
+  .aw-hero h1 { font-size:20px; margin:0 0 4px; letter-spacing:-0.02em; font-weight:650; }
+  .aw-hero p { color:var(--muted); margin:0 auto; max-width:380px; }
+  .aw-cards { display:grid; grid-template-columns:1fr 1fr; gap:8px; max-width:460px; margin:16px auto 12px; padding:0 14px; }
+  .aw-card { border:1px solid var(--line); border-radius:12px; padding:9px 11px; text-align:left; display:flex; gap:9px; align-items:flex-start; }
+  .aw-card .ic { flex:none; width:22px; height:22px; border-radius:7px; background:var(--blue-soft); color:var(--blue); display:grid; place-items:center; font-size:11px; }
+  .aw-card b { display:block; font-size:12px; }
+  .aw-card span { color:var(--muted); font-size:11px; display:block; }
+  .aw-comp { margin:6px auto 0; max-width:440px; border:1px solid var(--line); border-radius:22px; padding:9px 9px 9px 16px; display:flex; align-items:center; gap:8px; background:var(--comp); box-shadow:0 1px 2px rgba(15,23,42,.04), 0 6px 20px rgba(15,23,42,.06); }
+  .aw.black .aw-comp { box-shadow:none; }
+  .aw-comp span { flex:1; color:var(--muted); }
+  .aw-send { width:30px; height:30px; border-radius:50%; background:var(--send-bg); color:var(--send-ink); display:grid; place-items:center; flex:none; }
+  .aw-chip { border:1px solid var(--line); border-radius:999px; padding:4px 11px; font-size:11.5px; color:var(--ink); }
+  .aw-foot { text-align:center; color:var(--muted); font-size:10.5px; padding:12px 10px; }
+  .aw-thread { max-width:620px; margin:0 auto; padding:14px 18px 6px; display:flex; flex-direction:column; gap:14px; }
+  .aw-u { align-self:flex-end; background:var(--surface); border-radius:18px; padding:8px 14px; max-width:78%; }
+  .aw-u.masked { color:var(--muted); font-style:italic; }
+  .aw-b { display:flex; gap:10px; }
+  .aw-av { flex:none; width:26px; height:26px; border-radius:50%; background:var(--blue-soft); display:grid; place-items:center; }
+  .aw-b p { margin:0 0 6px; }
+  .aw-tag { display:inline-flex; gap:4px; align-items:center; font-size:10.5px; color:var(--ok); background:var(--ok-bg); border-radius:6px; padding:1px 7px; font-weight:500; }
+  .aw-tag.safe { color:var(--blue); background:var(--blue-soft); }
+  .aw-fu { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .aw-dots { display:flex; gap:4px; padding:8px 0; }
+  .aw-dots i { width:6px; height:6px; border-radius:50%; background:var(--muted); opacity:.6; }
+  .aw-bottom { padding:6px 18px 0; }
+  .aw-bottom .aw-comp { max-width:620px; }
+  .aw-meta { display:flex; justify-content:space-between; max-width:620px; margin:6px auto 0; color:var(--muted); font-size:10.5px; padding:0 6px 12px; gap:8px; }
+  /* phone */
+  .phone-wrap { display:flex; gap:1.5rem; align-items:flex-start; flex-wrap:wrap; }
+  .phone { width:360px; flex:none; border-radius:28px; border:6px solid #2a2a2e; overflow:hidden; }
+  .phone .aw { border:none; border-radius:0; font-size:14px; }
+  .phone .aw-top { padding:10px 12px; }
+  .phone .aw-brand span { display:none; }
+  .phone .aw-cards { grid-template-columns:1fr 1fr; padding:0 12px; gap:7px; }
+  .phone .aw-card { padding:9px; gap:7px; }
+  .phone .aw-card span { font-size:11px; line-height:1.35; }
+  .phone .aw-hero { padding:14px 16px 0; }
+  .phone .aw-hero h1 { font-size:19px; }
+  .phone .aw-hero p { font-size:13px; }
+  .phone .aw-comp { margin:4px 12px 0; padding:8px 8px 8px 14px; }
+  .phone-notes { flex:1; min-width:240px; }
+  .phone-notes li { margin-bottom:0.5rem; }
+</style>
+
+<h2>Option B with true-black dark mode</h2>
+<p class="subtitle">Same layout in light and true black. In dark mode the page is pure #000; raised surfaces (your message bubble, the question box) sit just above black so they stay visible. Muted text is kept at AA contrast or better on black.</p>
+
+<div class="split">
+  <!-- light -->
+  <div class="aw">
+    <div class="aw-top">
+      <div class="aw-brand">
+        <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.2l8 3v6.1c0 5-3.4 9.3-8 10.9-4.6-1.6-8-5.9-8-10.9V5.2l8-3z" fill="#0B1F3A"/><path d="M6.6 12.2c1.4-2.3 3.2-3.4 5.4-3.4s4 1.1 5.4 3.4c-1.4 2.3-3.2 3.4-5.4 3.4s-4-1.1-5.4-3.4z" fill="#fff"/><circle cx="12" cy="12.2" r="1.9" fill="#2453D6"/></svg>
+        <div><b>Alpha Watchdog</b><span>Support Assistant</span></div>
+      </div>
+      <div class="aw-tools"><div class="aw-seg"><i class="on">EN</i><i>ES</i></div><div class="aw-ibtn">◐</div><div class="aw-ibtn">↓</div></div>
+    </div>
+    <div class="aw-notice"><div>ⓘ Demonstration only · fictional student startup</div></div>
+    <div class="aw-hero"><h1>Hi, I'm the Alpha Watchdog assistant.</h1><p>I can answer questions about how Alpha Watchdog finds hijacked smart devices on your home network. What would you like to know?</p></div>
+    <div class="aw-cards">
+      <div class="aw-card"><div class="ic">⚙</div><div><b>How it works</b><span>From spotting a device to a one-tap fix</span></div></div>
+      <div class="aw-card"><div class="ic">!</div><div><b>The problem</b><span>Why millions of smart devices get hijacked</span></div></div>
+      <div class="aw-card"><div class="ic">◉</div><div><b>Privacy</b><span>What it reads, and what it never touches</span></div></div>
+      <div class="aw-card"><div class="ic">$</div><div><b>Pricing</b><span>What we're planning</span></div></div>
+      <div class="aw-card"><div class="ic">⇄</div><div><b>Competitors</b><span>vs NETGEAR, eero, Firewalla, Fing</span></div></div>
+      <div class="aw-card"><div class="ic">⚠</div><div><b>Warning signs</b><span>Is my device acting hijacked?</span></div></div>
+      <div class="aw-card"><div class="ic">≡</div><div><b>Our research</b><span>Why we chose cybersecurity</span></div></div>
+      <div class="aw-card"><div class="ic">☺</div><div><b>The team</b><span>Who built Alpha Watchdog</span></div></div>
+    </div>
+    <div style="padding:0 14px"><div class="aw-comp"><span>Ask about Alpha Watchdog…</span><div class="aw-send">↑</div></div></div>
+    <div class="aw-foot">v1.0 · Answers come only from Team Alpha's approved list · Contact Team Alpha</div>
+  </div>
+
+  <!-- true black -->
+  <div class="aw black">
+    <div class="aw-top">
+      <div class="aw-brand">
+        <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.2l8 3v6.1c0 5-3.4 9.3-8 10.9-4.6-1.6-8-5.9-8-10.9V5.2l8-3z" fill="#8AABFF"/><path d="M6.6 12.2c1.4-2.3 3.2-3.4 5.4-3.4s4 1.1 5.4 3.4c-1.4 2.3-3.2 3.4-5.4 3.4s-4-1.1-5.4-3.4z" fill="#000"/><circle cx="12" cy="12.2" r="1.9" fill="#8AABFF"/></svg>
+        <div><b>Alpha Watchdog</b><span>Support Assistant</span></div>
+      </div>
+      <div class="aw-tools"><div class="aw-seg"><i class="on">EN</i><i>ES</i></div><div class="aw-ibtn">◐</div><div class="aw-ibtn">↓</div></div>
+    </div>
+    <div class="aw-notice"><div>ⓘ Demonstration only · fictional student startup</div></div>
+    <div class="aw-hero"><h1>Hi, I'm the Alpha Watchdog assistant.</h1><p>I can answer questions about how Alpha Watchdog finds hijacked smart devices on your home network. What would you like to know?</p></div>
+    <div class="aw-cards">
+      <div class="aw-card"><div class="ic">⚙</div><div><b>How it works</b><span>From spotting a device to a one-tap fix</span></div></div>
+      <div class="aw-card"><div class="ic">!</div><div><b>The problem</b><span>Why millions of smart devices get hijacked</span></div></div>
+      <div class="aw-card"><div class="ic">◉</div><div><b>Privacy</b><span>What it reads, and what it never touches</span></div></div>
+      <div class="aw-card"><div class="ic">$</div><div><b>Pricing</b><span>What we're planning</span></div></div>
+      <div class="aw-card"><div class="ic">⇄</div><div><b>Competitors</b><span>vs NETGEAR, eero, Firewalla, Fing</span></div></div>
+      <div class="aw-card"><div class="ic">⚠</div><div><b>Warning signs</b><span>Is my device acting hijacked?</span></div></div>
+      <div class="aw-card"><div class="ic">≡</div><div><b>Our research</b><span>Why we chose cybersecurity</span></div></div>
+      <div class="aw-card"><div class="ic">☺</div><div><b>The team</b><span>Who built Alpha Watchdog</span></div></div>
+    </div>
+    <div style="padding:0 14px"><div class="aw-comp"><span>Ask about Alpha Watchdog…</span><div class="aw-send">↑</div></div></div>
+    <div class="aw-foot">v1.0 · Answers come only from Team Alpha's approved list · Contact Team Alpha</div>
+  </div>
+</div>
+
+<h3 style="margin-top:2rem">Conversation in true black</h3>
+<div class="aw black">
+  <div class="aw-top">
+    <div class="aw-brand">
+      <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.2l8 3v6.1c0 5-3.4 9.3-8 10.9-4.6-1.6-8-5.9-8-10.9V5.2l8-3z" fill="#8AABFF"/><path d="M6.6 12.2c1.4-2.3 3.2-3.4 5.4-3.4s4 1.1 5.4 3.4c-1.4 2.3-3.2 3.4-5.4 3.4s-4-1.1-5.4-3.4z" fill="#000"/><circle cx="12" cy="12.2" r="1.9" fill="#8AABFF"/></svg>
+      <div><b>Alpha Watchdog</b><span>Support Assistant</span></div>
+    </div>
+    <div class="aw-tools"><div class="aw-seg"><i class="on">EN</i><i>ES</i></div><div class="aw-ibtn">◐</div><div class="aw-ibtn">↓</div><div class="aw-btn">New chat</div></div>
+  </div>
+  <div class="aw-notice"><div>ⓘ Demonstration only · fictional student startup</div></div>
+  <div class="aw-thread">
+    <div class="aw-u">my roku is acting weird, could it be hacked</div>
+    <div class="aw-b">
+      <div class="aw-av"><svg width="16" height="16" viewBox="0 0 24 24"><path d="M12 2.2l8 3v6.1c0 5-3.4 9.3-8 10.9-4.6-1.6-8-5.9-8-10.9V5.2l8-3z" fill="#8AABFF"/></svg></div>
+      <div>
+        <p>It's possible. Warning signs include a device that's busy while nobody is using it, internet that slows down for no reason, or a generic streaming box that asked you to turn off Google Play Protect.</p>
+        <span class="aw-tag">✓ Approved answer</span>
+        <div class="aw-fu"><div class="aw-chip">What should I do if it's infected?</div><div class="aw-chip">What is BADBOX 2.0?</div><div class="aw-chip">How would Alpha Watchdog catch this?</div></div>
+      </div>
+    </div>
+    <div class="aw-u masked">🔒 [hidden for your safety]</div>
+    <div class="aw-b">
+      <div class="aw-av"><svg width="16" height="16" viewBox="0 0 24 24"><path d="M12 2.2l8 3v6.1c0 5-3.4 9.3-8 10.9-4.6-1.6-8-5.9-8-10.9V5.2l8-3z" fill="#8AABFF"/></svg></div>
+      <div><p>Please don't share passwords or personal financial details here. Alpha Watchdog will never ask for them.</p><span class="aw-tag safe">🛡 Safety check</span></div>
+    </div>
+    <div class="aw-u">how is this different from firewalla</div>
+    <div class="aw-b">
+      <div class="aw-av"><svg width="16" height="16" viewBox="0 0 24 24"><path d="M12 2.2l8 3v6.1c0 5-3.4 9.3-8 10.9-4.6-1.6-8-5.9-8-10.9V5.2l8-3z" fill="#8AABFF"/></svg></div>
+      <div class="aw-dots"><i></i><i></i><i></i></div>
+    </div>
+  </div>
+  <div class="aw-bottom"><div class="aw-comp"><span>Ask about Alpha Watchdog…</span><div class="aw-send">↑</div></div></div>
+  <div class="aw-meta"><span>v1.0 · Answers come only from Team Alpha's approved list</span><span>Contact Team Alpha</span></div>
+</div>
+
+<h3 style="margin-top:2rem">On a 360 px phone</h3>
+<div class="phone-wrap">
+  <div class="phone">
+    <div class="aw black">
+      <div class="aw-top">
+        <div class="aw-brand">
+          <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.2l8 3v6.1c0 5-3.4 9.3-8 10.9-4.6-1.6-8-5.9-8-10.9V5.2l8-3z" fill="#8AABFF"/><path d="M6.6 12.2c1.4-2.3 3.2-3.4 5.4-3.4s4 1.1 5.4 3.4c-1.4 2.3-3.2 3.4-5.4 3.4s-4-1.1-5.4-3.4z" fill="#000"/><circle cx="12" cy="12.2" r="1.9" fill="#8AABFF"/></svg>
+          <div><b>Alpha Watchdog</b><span>Support Assistant</span></div>
+        </div>
+        <div class="aw-tools"><div class="aw-seg"><i class="on">EN</i><i>ES</i></div><div class="aw-ibtn">◐</div><div class="aw-ibtn">⋯</div></div>
+      </div>
+      <div class="aw-notice"><div>ⓘ Demonstration only · fictional student startup</div></div>
+      <div class="aw-hero"><h1>Hi, I'm the Alpha Watchdog assistant.</h1><p>I can answer questions about how Alpha Watchdog finds hijacked smart devices on your home network. What would you like to know?</p></div>
+      <div class="aw-cards">
+        <div class="aw-card"><div class="ic">⚙</div><div><b>How it works</b><span>Spot it, explain it, fix it</span></div></div>
+        <div class="aw-card"><div class="ic">!</div><div><b>The problem</b><span>Hijacked smart devices</span></div></div>
+        <div class="aw-card"><div class="ic">◉</div><div><b>Privacy</b><span>What it never reads</span></div></div>
+        <div class="aw-card"><div class="ic">$</div><div><b>Pricing</b><span>What we're planning</span></div></div>
+        <div class="aw-card"><div class="ic">⇄</div><div><b>Competitors</b><span>NETGEAR, eero, more</span></div></div>
+        <div class="aw-card"><div class="ic">⚠</div><div><b>Warning signs</b><span>Is my device hijacked?</span></div></div>
+        <div class="aw-card"><div class="ic">≡</div><div><b>Our research</b><span>Why cybersecurity</span></div></div>
+        <div class="aw-card"><div class="ic">☺</div><div><b>The team</b><span>Who built it</span></div></div>
+      </div>
+      <div class="aw-comp"><span>Ask about Alpha Watchdog…</span><div class="aw-send">↑</div></div>
+      <div class="aw-foot">v1.0 · Contact Team Alpha</div>
+    </div>
+  </div>
+  <div class="phone-notes">
+    <p><strong>Phone adjustments:</strong></p>
+    <ul>
+      <li>The subtitle hides; the name and shield stay.</li>
+      <li>Download transcript and New chat move into the <strong>⋯</strong> menu. EN/ES and the theme button stay visible because the demo uses them.</li>
+      <li>Card hints shorten so the eight cards fit without scrolling past the question box.</li>
+      <li>The question box stays pinned to the bottom of the screen above the keyboard.</li>
+    </ul>
+  </div>
+</div>

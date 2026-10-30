@@ -1,0 +1,15 @@
+{
+  "name": "alpha-watchdog",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Alpha Watchdog support assistant: Claude chooses Team Alpha's approved answers; it never writes them.",
+  "scripts": {
+    "test": "node tests/chatbot.test.js && node tests/api.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0"
+  }
+}
