@@ -129,6 +129,7 @@
     metaLong: $('meta-long'),
     metaShort: $('meta-short'),
     contact: $('contact-btn'),
+    scan: $('scan-btn'),
     theme: $('theme-btn'),
     download: $('download-btn'),
     newChat: $('newchat-btn'),
@@ -810,6 +811,7 @@
   els.download.addEventListener('click', downloadTranscript);
   els.newChat.addEventListener('click', newChat);
   els.contact.addEventListener('click', function () { submit(CONTACT_QUESTION, 'contact'); });
+  if (els.scan) els.scan.addEventListener('click', function () { submit('Run a scan', 'card'); });
 
   /* ---------- Keep the composer above the on-screen keyboard (iOS) ---------- */
 
