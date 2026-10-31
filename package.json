@@ -1,10 +1,10 @@
 {
   "name": "alpha-watchdog",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
-  "description": "Alpha Watchdog support assistant: Claude chooses Team Alpha's approved answers; it never writes them.",
+  "description": "Alpha Watchdog support assistant: Claude picks Team Alpha's approved answers, or writes grounded answers from its demo facts.",
   "scripts": {
-    "test": "node tests/chatbot.test.js && node tests/api.test.js"
+    "test": "node tests/chatbot.test.js && node tests/api.test.js && node tests/guardrails.test.js"
   },
   "engines": {
     "node": ">=20"

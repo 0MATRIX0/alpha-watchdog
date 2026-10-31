@@ -7,19 +7,27 @@ const KB = require('../knowledge.js');
 
 function fakeClient(script) {
   const calls = [];
+  const queues = {};
   return {
     calls,
     messages: {
       async create(params, opts) {
         calls.push(params.model);
-        const step = script[params.model];
+        let step = script[params.model];
+        // A model's script may be a queue (consumed in order) so one model can first
+        // classify (JSON) and then generate (prose) in the general-knowledge lane.
+        if (Array.isArray(step)) {
+          queues[params.model] = queues[params.model] || step.slice();
+          step = queues[params.model].shift();
+        }
         if (!step) throw new Error('no script for ' + params.model);
         if (step.delay) await new Promise((r, j) => {
           const t = setTimeout(r, step.delay);
           opts.signal && opts.signal.addEventListener('abort', () => { clearTimeout(t); j(new Error('aborted')); });
         });
         if (step.throw) throw new Error(step.throw);
-        return { stop_reason: step.stop || 'end_turn', content: [{ type: 'text', text: JSON.stringify(step.out) }] };
+        const text = 'text' in step ? step.text : JSON.stringify(step.out);
+        return { stop_reason: step.stop || 'end_turn', content: [{ type: 'text', text }] };
       },
     },
   };
@@ -101,6 +109,28 @@ test('bad method and body', async () => {
 });
 test('every Claude-selectable id exists with text', () => {
   for (const id of KB.claudeIds) assert.ok(KB.replies[id] && KB.replies[id].text, id);
+});
+test('general_answer triggers one generation call and returns source=general with text', async () => {
+  const c = fakeClient({
+    [H]: { out: { ids: ['general_answer'], confidence: 'high' } },
+    [S]: [{ out: { ids: ['general_answer'], confidence: 'high' } }, { text: 'Hacking means gaining access to a device or account without permission.' }],
+  });
+  const r = await call(createHandler({ client: c }), { message: 'what is hacking', recent: [] });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.source, 'general');
+  assert.deepEqual(r.body.ids, ['general_answer']);
+  assert.ok(r.body.text && r.body.text.includes('Hacking'));
+  assert.equal(c.calls.filter((m) => m === S).length, 2); // classify + generate
+});
+test('generated text with a link is rejected and falls back to off_topic', async () => {
+  const c = fakeClient({
+    [H]: { out: { ids: ['general_answer'], confidence: 'high' } },
+    [S]: [{ out: { ids: ['general_answer'], confidence: 'high' } }, { text: 'Sure, see https://evil.example for the steps.' }],
+  });
+  const r = await call(createHandler({ client: c }), { message: 'what is hacking', recent: [] });
+  assert.equal(r.body.source, 'claude');
+  assert.deepEqual(r.body.ids, ['off_topic']);
+  assert.ok(!r.body.text);
 });
 
 (async () => {
