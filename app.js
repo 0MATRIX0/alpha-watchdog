@@ -7,7 +7,7 @@
   var KB = window.AW_KB || null;
   var ENGINE = window.AW_ENGINE || null;
 
-  var VERSION = (KB && KB.VERSION) || 'v1.0';
+  var VERSION = (KB && KB.VERSION) || 'v1.1';
   var MASK_TEXT = '🔒 [hidden for your safety]';
   var CONTACT_QUESTION = 'How can I contact Team Alpha?';
   var FALLBACK_ERROR = 'The response failed. Please retry.';
@@ -19,10 +19,14 @@
   var COUNTER_AT = 400;
   var MAX_CHARS = 500;
   var MAX_IDS = 2;
-  var TAG_LABEL = { approved: '✓ Approved answer', safety: '🛡 Safety check' };
+  var TAG_LABEL = { approved: '✓ Approved answer', safety: '🛡 Safety check', general: '✶ AI answer' };
   var META = {
     claude: {
       long: VERSION + " · Powered by Claude · Answers come only from Team Alpha's approved list",
+      short: VERSION + ' · Powered by Claude'
+    },
+    general: {
+      long: VERSION + ' · Powered by Claude · Answered live from Team Alpha’s demo data (not a pre-written reply)',
       short: VERSION + ' · Powered by Claude'
     },
     rules: {
@@ -36,10 +40,10 @@
     { id: 'how_it_works', title: 'How it works', hint: 'From spotting a device to a one-tap fix', hintShort: 'Spot it, explain it, fix it', question: 'How does it work?' },
     { id: 'problem', title: 'The problem', hint: 'Why millions of smart devices get hijacked', hintShort: 'Hijacked smart devices', question: 'What problem does it solve?' },
     { id: 'privacy', title: 'Privacy', hint: 'What it reads, and what it never touches', hintShort: 'What it never reads', question: 'Will it read my data?' },
-    { id: 'pricing', title: 'Pricing', hint: "What we're planning", hintShort: "What we're planning", question: 'How much does it cost?' },
-    { id: 'competitors', title: 'Competitors', hint: 'vs NETGEAR, eero, Firewalla, Fing', hintShort: 'NETGEAR, eero, more', question: 'Who are your competitors?' },
+    { id: 'pricing', title: 'Plans & pricing', hint: '$89 sensor, three plans', hintShort: '$89 + 3 plans', question: 'What are the differences between the plans?' },
+    { id: 'differentiators', title: 'What makes us different', hint: 'Why Alpha Watchdog, in plain terms', hintShort: 'Why Alpha Watchdog', question: 'What makes it different?' },
     { id: 'warning_signs', title: 'Warning signs', hint: 'Is my device acting hijacked?', hintShort: 'Is my device hijacked?', question: 'What are the warning signs of a hijacked device?' },
-    { id: 'research', title: 'Our research', hint: 'Why we chose cybersecurity', hintShort: 'Why cybersecurity', question: 'What research did your team do?' },
+    { id: 'infected_steps', title: 'If a device is hacked', hint: 'What to do, step by step', hintShort: 'What to do', question: 'What should I do if a device is infected?' },
     { id: 'team', title: 'The team', hint: 'Who built Alpha Watchdog', hintShort: 'Who built it', question: 'Who built Alpha Watchdog?' }
   ];
 
@@ -53,9 +57,9 @@
     problem: [['circle', { cx: 12, cy: 12, r: 8.5 }], ['path', { d: 'M12 7.8v5M12 16.2h.01' }]],
     privacy: [['rect', { x: 5, y: 10.5, width: 14, height: 9.5, rx: 2 }], ['path', { d: 'M8 10.5V8a4 4 0 0 1 8 0v2.5' }]],
     pricing: [['path', { d: 'M3.8 12.6V4.5a.7.7 0 0 1 .7-.7h8.1l7.6 7.6a1 1 0 0 1 0 1.4l-6.8 6.8a1 1 0 0 1-1.4 0z' }], ['circle', { cx: 8.3, cy: 8.3, r: 1.3 }]],
-    competitors: [['path', { d: 'M4 8h14M14.5 4.5 18 8l-3.5 3.5M20 16H6M9.5 12.5 6 16l3.5 3.5' }]],
+    differentiators: [['path', { d: 'M12 3l1.8 4.6 4.7 1.4-4.7 1.4L12 15l-1.8-4.6L5.5 9l4.7-1.4z' }], ['path', { d: 'M17.5 14l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z' }]],
     warning_signs: [['path', { d: 'M10.3 4.3 2.9 17.5A2 2 0 0 0 4.6 20.5h14.8a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0z' }], ['path', { d: 'M12 9.5v4.2M12 17h.01' }]],
-    research: [['path', { d: 'M4 20h16M7 16.5v-5M12 16.5V6.5M17 16.5v-8' }]],
+    infected_steps: [['path', { d: 'M14.8 6.2a3.6 3.6 0 0 0-4.9 4.2l-5 5L7 17.8l5-5a3.6 3.6 0 0 0 4.2-4.9l-2.3 2.3-1.8-.5-.5-1.8z' }]],
     team: [['circle', { cx: 9, cy: 8.5, r: 3.2 }], ['path', { d: 'M3 19.5c.6-3.2 3-5 6-5s5.4 1.8 6 5M15.5 5.6a3 3 0 0 1 0 5.8M17.5 14.8c1.8.6 3 2.2 3.5 4.7' }]]
   };
 
@@ -365,8 +369,8 @@
     return [];
   }
 
-  async function renderReply(shell, ids, source, sess) {
-    var paras = ids.map(function (id) { return textFor(id, source); }).filter(Boolean);
+  async function renderReply(shell, ids, source, sess, text) {
+    var paras = (source === 'general' && text) ? [text] : ids.map(function (id) { return textFor(id, source); }).filter(Boolean);
     if (!paras.length) throw new Error('empty reply');
     var tags = uniqueTags(ids);
     var chips = chipsFor(ids);
@@ -515,6 +519,11 @@
       var data = await res.json();
       var ids = data && validIds(data.ids);
       if (!ids) throw new Error('bad ids');
+      if (data.source === 'general') {
+        var gtext = data && typeof data.text === 'string' ? data.text.trim() : '';
+        if (!gtext || gtext.length > 900 || /<[^\s]|https?:\/\/|`|\]\(/i.test(gtext)) throw new Error('bad general text');
+        return { ids: ids, source: 'general', text: gtext };
+      }
       if (data.source !== 'claude' && data.source !== 'guardrail') throw new Error('bad source');
       return { ids: ids, source: data.source };
     } finally {
@@ -546,11 +555,11 @@
     var shownAt = performance.now();
     try {
       var result;
-      if (job.r.action === 'reply') {
+      if (job.r.action === 'reply' && job.r.ids && job.r.ids[0] !== 'unknown_fact') {
         var ids = validIds(job.r.ids);
         if (!ids) throw new Error('bad guardrail ids');
         result = { ids: ids, source: 'guardrail' };
-      } else if (job.r.action === 'ask') {
+      } else if (job.r.action === 'ask' || job.r.action === 'reply') {
         // r.recent = earlier messages only (the API adds the current one itself).
         result = await getAnswer(job.text, Array.isArray(job.r.recent) ? job.r.recent : (job.r.state && job.r.state.recent));
       } else {
@@ -567,9 +576,9 @@
         job.masked = true;
         job.text = null;
       }
-      if (result.source === 'claude' || result.source === 'rules') setMeta(result.source);
+      if (result.source === 'claude' || result.source === 'rules' || result.source === 'general') setMeta(result.source);
 
-      await renderReply(shell, result.ids, result.source, job.session);
+      await renderReply(shell, result.ids, result.source, job.session, result.text);
 
       if (job.r.repeat && job.session === session && replyOf('repeat_notice')) {
         var notice = assistantShell();

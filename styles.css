@@ -15,6 +15,8 @@
   --warn-ink: #704600;
   --ok: #0F7B4B;
   --ok-bg: #E4F5EC;
+  --violet: #6D28D9;
+  --violet-soft: #F0EBFC;
   --shield: #0B1F3A;
   --eye: #FFFFFF;
   --pupil: #2453D6;
@@ -45,6 +47,8 @@
     --warn-ink: #F2C66B;
     --ok: #5FD39A;
     --ok-bg: #0A2214;
+    --violet: #C4B5FD;
+    --violet-soft: #1C1530;
     --shield: #8AABFF;
     --eye: #000000;
     --pupil: #8AABFF;
@@ -69,6 +73,8 @@
   --warn-ink: #F2C66B;
   --ok: #5FD39A;
   --ok-bg: #0A2214;
+  --violet: #C4B5FD;
+  --violet-soft: #1C1530;
   --shield: #8AABFF;
   --eye: #000000;
   --pupil: #8AABFF;
@@ -243,6 +249,7 @@ button:disabled { cursor: default; }
   color: var(--ok); background: var(--ok-bg);
 }
 .tag-safety { color: var(--blue); background: var(--blue-soft); }
+.tag-general { color: var(--violet); background: var(--violet-soft); }
 
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .chip {

@@ -12,6 +12,7 @@
   const RECENT_MAX = 3;
   const HIGH = 3;                 // score at or above: answer
   const LOW = 1.5;                // score at or above (below HIGH): clarify
+  const OOV_STRONG = 5;           // below this, a match with an unknown word and no product word: clarify
 
   // Lazy so engine.js can load before knowledge.js in tests.
   function getKB() {
@@ -82,7 +83,7 @@
     [/\b(tv|streaming|android|set top) box(es)?\b/g, 'tv box'], [/\bpicture frames?\b|\bphoto frames?\b/g, 'picture frame'],
     [/\bartificial intelligence\b/g, 'ai'], [/\bmachine learning\b/g, 'ml'],
     [/\btell if\b|\bknow if\b/g, 'tell signs'], [/\bget in touch\b/g, 'contact'],
-    [/\byou guys\b|\byou all\b/g, 'yall'], [/\bnew-device\b/g, 'new device']
+    [/\byou guys\b|\byou all\b/g, 'yall'], [/\bnew-device\b/g, 'new device'], [/\bwatchdog plus\b/g, 'watchdogplus']
   ];
 
   const SYN = {
@@ -116,7 +117,8 @@
 
   // Lowercase/clean/contractions plus synonyms. Used for matching and repeat detection.
   function normalize(text) {
-    let s = words(deleet(prep(text)));
+    // The plan name "Watchdog+" keeps its "+" as a word before words() strips punctuation.
+    let s = words(deleet(prep(text)).replace(/\bwatchdog ?\+/g, 'watchdogplus '));
     for (let i = 0; i < PHRASES.length; i++) s = s.replace(PHRASES[i][0], PHRASES[i][1]);
     return s.split(' ').filter(Boolean).map(function (w) { return SYN[w] || w; }).join(' ');
   }
@@ -149,15 +151,23 @@
     return false;
   }
 
+  // "how do I know if my password was leaked" asks about a leak and discloses nothing. Only cut when
+  // the leak word ends the message or a question follows it ("my password was leaked, sunshine" is
+  // still a disclosure).
+  const LEAK_ASK = /\b(my (\w+ ){0,2}(password|pin|passcode|pin number|login|credentials?)|(password|passcode|pin) (for|to|of) my \w+( \w+)?) (is|was|are|were|has been|have been|got) (leaked|stolen|hacked|exposed|breached|compromised|pwned|cracked|guessed|phished|in a (data )?breach|on the dark web)( (online|somehow|again|recently|or not|by hackers|by someone|in a (data )?breach|on the dark web))?(?= (what|how|should|do|does|can|could|is|are|will|would|and (what|how|should)|so (what|how)|now what|help|please)\b|$)/g;
+
   function sensitive(t, w) {
     if (hasCard(t)) return true;
+    // lw: w with leak questions cut out, unless the rest still reads like a disclosure.
+    let lw = w.replace(LEAK_ASK, ' leak ');
+    if (lw !== w && (/[:=]/.test(t) || /\b(it|which|that|this|the (old|new|real|actual) (one|password)) (is|was|are|were)\b/.test(lw))) lw = w;
     if (/\b\d{3}-\d{2}-\d{4}\b/.test(t) || /\b\d{3} \d{2} \d{4}\b/.test(t)) return true;
     if (/\b(ssn|social security( number)?|routing( number)?|account (number|no|num)|acct|iban|swift|bank account|card number|credit card|debit card|cvv|cvc|security code|pin)\b\D{0,25}\d{3,}/.test(w)) return true;
-    if (/\bmy (\w+ ){0,2}(password|pin|passcode|pin number|login|credentials?|security code|ssn|social security number) (is|was|=|are)\b/.test(w)) return true;
+    if (/\bmy (\w+ ){0,2}(password|pin|passcode|pin number|login|credentials?|security code|ssn|social security number) (is|was|=|are)\b/.test(lw)) return true;
     if (/\b(password|passwd|passcode|pwd|pin|login|username|user name)\s*[:=]/.test(t)) return true;
     if (/\bpwd\b/.test(w)) return true;
     if (/\b(here is|this is|use) my (\w+ )?(password|pin|passcode|card|ssn|login)\b/.test(w)) return true;
-    if (/\b(password|passcode|pin) (for|to|of) my \w+( \w+)? (is|was)\b/.test(w)) return true;
+    if (/\b(password|passcode|pin) (for|to|of) my \w+( \w+)? (is|was)\b/.test(lw)) return true;
     return false;
   }
 
@@ -170,11 +180,26 @@
     // ("does it need admin access to my router?") is a setup question, not a credential request.
     const productNeedsAccess = /\b(does|do|will|would|can|is) (it|alpha watchdog|the sensor|the app|this) (need|needs|require|requires|ask for|asks for|want|wants|use|uses|get|have) (\w+ ){0,2}(admin|root) (access|rights|privileges|login)( (to|for|on) (my|our|the) (router|network|wifi|modem|home network))?\b/.test(w)
       && !/\b(api ?keys?|tokens?|env|environment|anthropic|openai|master password|your|team|server|database)\b/.test(w);
-    if (!productNeedsAccess && /\b(api ?keys?|secret keys?|access keys?|access tokens?|auth tokens?|bearer tokens?|session tokens?|private keys?|ssh keys?|env (file|vars?|variables?)|environment variables?|anthropic key|openai key|admin (access|rights|privileges|panel|password|account|login|credentials)|root (access|password|login)|superuser|sudo access|backdoor access|master password|admin passwords?|root passwords?|tokens?)\b/.test(w)) return true;
+    // Password hygiene is advice, not a credential request: "what is a master password" (the whole
+    // message defines a term) or "should I change the default password on my router" (the user's own
+    // gear, no ask verb, no new value as in "... to admin123"). Never for secrets or anyone else's account.
+    const definesPw = /^(what is|whats|what are|define|explain) (an? (default|admin|master|root|strong|unique|router|wifi) password|(default|admin|master|strong|unique|router|wifi) passwords)$/.test(w);
+    const statesValue = /\b(passwords?|logins?|credentials)\b( \w+){0,4} (to|as|into) (?!(something|a|an|the|my|our|its|stronger|longer|unique|new|different|better|secure|random|strong|long|complex|one|keep|stop|prevent|make|be|avoid|protect|change|update|reset)\b)\w/.test(w);
+    const ownHygiene = /\b(change|changing|update|updating|reset|resetting|set|setting|replace|rotate|strengthen) (the |my |our |all |any |every )?(own )?((default|admin|administrator|router|wifi|factory|master|old|current) )*(passwords?|logins?|credentials)\b/.test(w)
+      && /\b(i|we|my|our)\b/.test(w) && !askVerb.test(w) && !/\b(what (was|were)|tell|give|send|show|share|reveal)\b/.test(w) && !statesValue;
+    const hygiene = (definesPw || ownHygiene)
+      && !/\b(api ?keys?|keys?|tokens?|env|environment|secrets?|ssh|sudo|superuser|backdoor|root access|admin (access|rights|privileges|panel|account))\b/.test(w)
+      && !/\b(your|yall|team|teams|their|his|her|someones?|somebodys?|developers?|servers?|database|company|companys|anthropic|claude|vercel|github|neighbou?rs?|other peoples?|bot|site|website|dashboard|backend|school|schools)\b/.test(w);
+    if (!productNeedsAccess && !hygiene && /\b(api ?keys?|secret keys?|access keys?|access tokens?|auth tokens?|bearer tokens?|session tokens?|private keys?|ssh keys?|env (file|vars?|variables?)|environment variables?|anthropic key|openai key|admin (access|rights|privileges|panel|password|account|login|credentials)|root (access|password|login)|superuser|sudo access|backdoor access|master password|admin passwords?|root passwords?|tokens?)\b/.test(w)) return true;
     const target = /\b(the|your|yall|team|teams|team alphas?|their|his|her|someones?|somebodys?|developers?|admins?|administrators?|servers?|database|company|companys|anthropic|claude|vercel|github|default|neighbors?|neighbours?|other peoples?|its|bots?|sites?|websites?|schools?|wifi) (\w+ )?(password|passwords|login|logins|credentials|pin|username)\b/;
     const toFor = /\b(password|passwords|login|logins|credentials|pin|username) (to|for|of) (the|your|their|his|her|that|this|someones?|somebodys?|team|teams|team alphas?|admin|server|database|company|neighbors?|neighbours?|account|accounts|site|website|bot|dashboard|backend|system)\b/;
     // Generic password/login wording only: "does it need the wifi password" asks about the product.
-    if ((target.test(w) || toFor.test(w)) && asking) return true;
+    if (!hygiene && (target.test(w) || toFor.test(w)) && asking) return true;
+    // One-time and security codes are credentials too ("send me the verification code"); "what is a
+    // 2FA code" (a definition) is not.
+    const CODE_KIND = '(2fa|mfa|two factor|2 factor|verification|security|login|one time|otp|authentication|auth|access|sms|reset|recovery|backup) codes?';
+    if (asking && (new RegExp('\\b(the|your|yall|team|teams|their|his|her|someones?|somebodys?|that|this|admins?|servers?|accounts?)( \\w+)? ' + CODE_KIND + '\\b').test(w) ||
+      new RegExp('\\b(give|send|share|tell|forward|read|show|text|email) (me|us)( \\w+){0,3} ' + CODE_KIND + '\\b').test(w))) return true;
     if (/\b(log me in|give me access|grant me access|let me in|unlock (the )?(admin|account|system))\b/.test(w)) return true;
     return false;
   }
@@ -227,14 +252,62 @@
 
   const PROTECTIVE = /\b(attempt|attempts|look like|what is|what are|what does|signs|stop|stops|stopping|prevent|prevents|preventing|protect|protects|protecting|protection|block|blocks|blocking|detect|detects|detecting|detection|defend|defends|against|from|catch|catches|spot|spots|warn|warns|alert|alerts|notice|safe|secure|guard|tell if|know if|been|got|get|gets|getting|being|was|were|is|from)\b/;
   const ATTACK_ASK = /\b(how (do|can|could|would|should|might|to) (i|we|you|one|someone|me)?|how to|help me|teach me|show me|tell me how|explain how to|i want to|i need to|i am going to|i am trying to|im going to|trying to|want to|let us|let me|ways? to|steps to|guide (to|for)|tutorial|instructions (to|for|on)|is it possible to|can you|could you|best way to|easiest way to|going to|planning to|plan to|need to|gonna)\b/;
+  // Learning ABOUT security ("what is hacking", "tell me about phishing", "how does
+  // malware work") is a general-knowledge question, not an attack request. It must not
+  // trip the harmful catch-all; the generative general-knowledge lane answers it instead.
+  // (Real attack phrasings — "how do I hack", "hack my neighbor" — are caught earlier.)
+  const EDUCATIONAL = /\b(what is|what are|what does|whats|what about|how about|tell me about|tell me more about|talk to me about|talk about|lets talk about|can we talk about|discuss|explain|describe|define|definition of|meaning of|learn about|learning about|read about|read up on|curious about|wondering about|interested in|info on|information (on|about)|more (on|about)|overview of|examples? of|types of|kinds of|history of|difference between|how (does|do) \w+ (work|works|happen|happens)|why do (hackers|people|criminals|they))\b/;
+
+  // Defenders, victims and worried owners use attack words without asking how to attack:
+  // "how do I stop phishing", "I clicked a phishing link", "can someone hack my baby monitor".
+  // harmful() cuts these frames out before its hack-verb checks, so any OTHER attack wording in the
+  // same message is judged exactly as before. Nothing is cut when the message shows intent to
+  // deceive or evade (MALICE), or when what is left still names another person (OTHER_PERSON).
+  const ATTACK_TERM = '(phishing|phish|ddos|ddosing|dos attacks?|hacking|hack|brute ?forcing|brute ?force|bruteforce|keylogging|password cracking)';
+  const ATTACK_NOUN = '( (emails?|links?|texts?|messages?|scams?|sites?|websites?|pages?|attempts?|attacks?|calls?|campaigns?))?';
+  // "avoid phishing filters" is evasion, not defence.
+  const NOT_EVASION = '(?! (filters?|filtering|detection|detectors?|protections?|defen[cs]es|security|scanners?|blockers?|mitigation|lockouts?|lock outs?|rate limits?|limits?|captchas?|bans?|training|tests?|kits?|tools?|templates?|payloads?|lures?|victims?|targets?|marks)\\b)';
+  const DEFENSE_FRAME = new RegExp('\\b(' + [
+    '(stop|stopping|spot|spotting|avoid|avoiding|prevent|preventing|recognize|recognise|recognizing|identify|identifying|detect|detecting|report|reporting|block|blocking|filter|catch|fight|combat|recover from|deal with|handle|respond to|understand|explain|learn about|safe from|protected from|protection (from|against)|(protect|secure|defend|guard)( \\w+){0,2} (from|against)|(stop|prevent|block|keep) (someone|somebody|anyone|people|hackers?|strangers?|criminals?|scammers?|them) from)( (a|an|the|this|that|these|those|any|future|incoming|fake|suspicious|possible))?',
+    '(fell for|fall for|falling for|clicked|clicked on|click on|opened|replied to|answered|victim of|hit by|targeted by)( (a|an|the|this|that|some))?',
+    '(email|text|message|link|site|website|page|call|this|that|it) (is|was|looks like|might be|could be)( (a|an))?(?= (phishing|ddos)\\b)'
+  ].join('|') + ') ' + ATTACK_TERM + ATTACK_NOUN + NOT_EVASION + '\\b' +
+    '|\\b(got|get|getting|received|receiving) (a |an |the |this |these |some |so many |lots of )?(phishing|ddos) (emails?|texts?|messages?|calls?|links?|scams?|attempts?|attacks?)\\b' +
+    '|\\bhow (does |do |did )?(a |an )?' + ATTACK_TERM + ATTACK_NOUN + ' (work|works|happen|happens)\\b', 'g');
+  const OTHERS = '(neighbou?rs?|exs?|wifes?|husbands?|girlfriends?|boyfriends?|partners?|roommates?|coworkers?|classmates?|bosss?|friends?|sisters?|brothers?|moms?|dads?|parents?|kids?|teachers?|someones|somebodys|others|their|theirs|his|her|hers|schools?|companys?|government|bank)';
+  const OTHER_PERSON = new RegExp('\\b' + OTHERS + '\\b');
+  // "can someone hack my baby monitor" (risk to the user's own device). Not cut when the message asks
+  // how ("how can someone hack my baby monitor") or names someone else's device.
+  const OWNER_WORRY = new RegExp('\\b(can|could|will|would|might|do|does) (someone|somebody|anyone|anybody|hackers?|a hacker|criminals?|people|strangers?|scammers?) ((\\w+ly|still|actually|really|just|even|ever|also) )?hack (into |in to )?(my|our) ((?!' + OTHERS + '\\b)\\w+ ){0,2}(cameras?|webcams?|cams?|doorbells?|baby monitors?|monitors?|tvs?|tv box|firestick|fire tv|roku|chromecast|apple tv|streaming (box|stick)|projectors?|picture frames?|speakers?|alexa|echo|thermostats?|plugs?|bulbs?|lights?|locks?|vacuums?|routers?|modems?|wifi|network|smart home|home network|phones?|laptops?|computers?|pcs?|tablets?|printers?|email|accounts?|devices?|gadgets?)\\b', 'g');
+  const HOW_ASK = /\b(how|ways?|steps|methods?|teach|show|tutorial|guide|explain|instructions)\b/;
+  // "how do I protect my wifi from neighbors" defends the user's own network.
+  const OWN_NETWORK_SHIELD = /\b(protect|secure|guard|defend|lock down|lock|hide|keep) (my|our) (own |home )?(wifi|internet|network|router|home network|wifi network|wifi password|password)( safe| secure| private| hidden)? (from|against) (my |the |nosy |our )?(neighbou?rs?)\b/g;
+  const MALICE = /\b(so (that )?(i|we) can|in order to|trick|tricking|fool|fooling|target|targets|targeting|my victims?|undetected|unnoticed|untraceable|anonymously|get away with|caught|detected|detection|traced|flagged|bypass|evade|evading|get (past|around)|without (them|him|her|anyone|anybody|people|getting|being) (knowing|noticing|seeing|caught|detected)|cover my tracks|revenge|get back at|prank|spam|junk|deliverability|taken down|takedown|blacklisted|blocklisted|from (being|getting) (taken|shut|blocked|flagged|reported|detected|caught|traced|found|banned|removed|deleted|marked)|(being|getting|get|gets) (taken down|shut down|blocked|flagged|reported|detected|caught|traced|found|banned|removed|deleted|marked|blacklisted)|more (convincing|believable|realistic|effective|successful)|most effective|works? best|click rates?|open rates?|step by step|in detail|detailed|exact steps|walk me through|walkthrough|tutorial|commands?|scripts?)\b/;
+  // What is left after cutting a frame must not still ask to carry out an attack ("... and how to launch one").
+  const ATTACK_ACTION = /\b(make|making|build|building|create|creating|send|sending|launch|launching|craft|crafting|deploy|deploying|perform|performing|execute|conduct|host|hosting|spread|spreading|set up|setup|write|writing|pull off|carry out|replicate|practice|practise|(do|use|try|run|start|get) (it|one|them|that|this|those|these|the same|some|my own)|back)\b/;
+  // "can someone hack my camera for me" asks someone to hack, not whether it can be hacked.
+  const HIRE = /\b(for me|for us|please|i will pay|pay you|pay someone|hire|dm me|pm me|message me|contact me|text me)\b/;
+  // Another person's or organization's connection (disruption rule in harmful()). "work", "office"
+  // and "company" are left out on purpose: "shut off my work laptop's wifi" is everyday.
+  const DISRUPT_TARGET = '(neighbou?rs?|roommates?|brothers?|sisters?|siblings?|moms?|dads?|parents?|exs?|wifes?|husbands?|girlfriends?|boyfriends?|partners?|coworkers?|classmates?|friends?|teachers?|bosss?|schools?|colleges?|landlords?|someones?|somebodys?|other peoples?|their|his|her) (\\w+ )?(internet|wifi|network|router|connection|modem|service|signal|website|server)\\b';
+  // Who an attack can be aimed at ("launch one at my school"). "network" is left out so
+  // "run a test on my network" stays the user's own.
+  const ATTACK_TARGET = '(neighbou?rs?|roommates?|exs?|wifes?|husbands?|girlfriends?|boyfriends?|partners?|coworkers?|classmates?|friends?|teachers?|bosss?|schools?|colleges?|employers?|companys?|company|government|banks?|websites?|sites?|servers?|someones?|somebodys?|someone|somebody|people|him|her|them|users?|victims?|landlords?)\\b';
 
   function harmful(w) {
     const SHIELD = /\b(protect|protects|protecting|protection|secure|securing|safe|safer|guard|defend|block|stop|prevent|warn)\b/;
     const verbHack = /\b(hack|crack|ddos|dos attack|phish|deauth|brute ?force|bruteforce|keylog|pwn|wardrive|sniff)(ing)?\b/;
-    if (verbHack.test(w)) {
-      if (new RegExp(ATTACK_ASK.source + ' (\\w+ ){0,6}' + verbHack.source).test(w)) return true;
-      if (/\b(hack|crack|ddos|phish|pwn)(ing)? (into|in to|my neighbors?|neighbors?|my neighbours?|someones?|somebodys?|other peoples?|people|their|his|her|my (ex|wife|husband|girlfriend|boyfriend|roommate|boss|school|work)|the (school|government|bank|pentagon|nsa|fbi|wifi|network)|a (website|server|bank|school|company|network|router|camera|phone|account)|websites?|servers?|accounts?|instagram|facebook|snapchat|gmail)\b/.test(w)) return true;
-      if (!PROTECTIVE.test(w)) return true;
+    // h: w with defensive / victim / owner-worry frames cut out (see DEFENSE_FRAME above).
+    let h = w;
+    if (!MALICE.test(w)) {
+      h = w.replace(DEFENSE_FRAME, ' defended ').replace(OWN_NETWORK_SHIELD, ' defended ');
+      if (!HOW_ASK.test(w) && !HIRE.test(w)) h = h.replace(OWNER_WORRY, ' defended ');
+      if (OTHER_PERSON.test(h) || ATTACK_ACTION.test(h)) h = w;
+    }
+    if (verbHack.test(h)) {
+      if (new RegExp(ATTACK_ASK.source + ' (\\w+ ){0,6}' + verbHack.source).test(h)) return true;
+      if (/\b(hack|crack|ddos|phish|pwn)(ing)? (into|in to|my neighbors?|neighbors?|my neighbours?|someones?|somebodys?|other peoples?|people|their|his|her|my (ex|wife|husband|girlfriend|boyfriend|roommate|boss|school|work)|the (school|government|bank|pentagon|nsa|fbi|wifi|network)|a (website|server|bank|school|company|network|router|camera|phone|account)|websites?|servers?|accounts?|instagram|facebook|snapchat|gmail)\b/.test(h)) return true;
+      if (!PROTECTIVE.test(h) && !EDUCATIONAL.test(h)) return true;
     }
     if (/\b(build|make|create|write|code|develop|run|start|launch|deploy|rent|buy|spread|program|set up|setup|design|install|send|craft|generate)\b (\w+ ){0,4}(botnet|botnets|malware|virus|viruses|ransomware|trojan|worm|keylogger|spyware|rootkit|exploits?|backdoor|payload|phishing (site|page|email|kit|link)|rat|zero ?day|ddos)\b/.test(w)) return true;
     if (/\b(break|breaking|broke|sneak|sneaking|get|getting) (into|in to) (my neighbors?|neighbors?|someones?|somebodys?|other peoples?|their|his|her|a |the (school|government|bank|company|server)|networks?|wifi|accounts?|servers?|computers?|phones?|routers?|cameras?|systems?)/.test(w)) return true;
@@ -244,20 +317,44 @@
     if (/\b(steal|stealing|swipe|leech|leeching|mooch)\b (\w+ ){0,4}(wifi|internet|passwords?|identity|credit cards?|card numbers?|accounts?|credentials|bandwidth|data|netflix|cookies)\b/.test(w) &&
       !PRODUCT_SUBJECT.test(w) && !/\b(hackers?|criminals?|attackers?|someone|somebody|they|scammers?|it|botnets?|malware|devices?|tvs?|apps?|people) (\w+ ){0,2}(steal|stealing)\b/.test(w)) return true;
     if (ATTACK_ASK.test(w) && /\b(neighbors?|neighbours?)\b (\w+ ){0,3}(wifi|internet|network|router|password|camera|tv|devices?)\b/.test(w) && /\b(without|free|use|get on|get into|access|crack|break|join|connect|password|steal|hack|kick|jam|disconnect)\b/.test(w)) return true;
-    if (ATTACK_ASK.test(w) && /\b(wifi|internet|network|router|password) (\w+ ){0,4}(from|of|off) (my |the )?(neighbors?|neighbours?)\b/.test(w)) return true;
+    if (ATTACK_ASK.test(w) && /\b(wifi|internet|network|router|password) (\w+ ){0,4}(from|of|off) (my |the )?(neighbors?|neighbours?)\b/.test(h)) return true;
     if (/\bsee what (my )?(wifes?|husbands?|girlfriends?|boyfriends?|partners?|exs?|neighbors?|roommates?|coworkers?) (is|are|does|do)\b/.test(w) || /\b(read|access|check|see|get into) (my )?(wifes?|husbands?|girlfriends?|boyfriends?|partners?|exs?|neighbors?|roommates?|coworkers?|someones?|somebodys?) (messages|texts|phone|email|emails|browsing|history|chats|dms|instagram|snapchat|accounts?)\b/.test(w)) return true;
     if (/\b(sql injection|xss|cross site scripting|man in the middle|mitm|evil twin|arp spoof(ing)?|packet injection|credential stuffing)\b/.test(w) && ATTACK_ASK.test(w) && !PROTECTIVE.test(w)) return true;
     if (/\b(make|build|create|turn) (\w+ ){0,3}(bomb|weapon|explosive)s?\b/.test(w)) return true;
     if (/^(please )?(hack|crack|ddos|steal|infect|hijack)\b/.test(w)) return true;
+    // Knocking SOMEONE ELSE'S connection offline: "how do I take down my neighbor's internet",
+    // "kill my roommate's wifi". The verb's object must be another person's connection, so
+    // "my neighbor's wifi keeps cutting out" and "turn off my kids' wifi at night" are not caught.
+    if (ATTACK_ASK.test(w) && (
+      new RegExp('\\b(take|taking|bring|bringing|knock|knocking|kick|kicking|cut|cutting|shut|shutting) (down|off|out) (my |the |our )?' + DISRUPT_TARGET).test(w) ||
+      new RegExp('\\b(take|taking|bring|bringing|knock|knocking|kick|kicking|cut|cutting|shut|shutting) (my |the |our )?' + DISRUPT_TARGET + ' (down|off|out|offline)\\b').test(w) ||
+      new RegExp('\\b(kill|killing|disable|disabling|jam|jamming|crash|crashing|flood|flooding|disrupt|disrupting|ddos|ddosing|overload|overloading) (my |the |our )?' + DISRUPT_TARGET).test(w))) return true;
+    // Hiding an attack the user admits to: "how do I keep them from finding out I hacked them".
+    // Victims say "I got hacked", which this does not match.
+    if (/\bi (hacked|cracked|phished|ddosed|broke into|hijacked)\b/.test(w) &&
+      /\b(hide|hiding|cover|covering|erase|erasing|delete|deleting|wipe|wiping|evidence|tracks|logs|caught|finding out|find out|traced|tracing|untraceable|undetected|nobody|no one)\b/.test(w)) return true;
+    // An attack term plus aiming it at a target: "explain ddos then launch one at my school".
+    if (verbHack.test(w) && new RegExp('\\b(launch|launching|run|running|do|perform|carry out|start|send|sending|aim|point|unleash|use|try) (it|one|that|this|them|an? (attack|ddos|hack))? ?(at|on|against) (my |the |a |an |our )?' + ATTACK_TARGET).test(w)) return true;
     return false;
   }
 
-  function fraud(w) {
+  // Learning about identity theft ("what is identity theft", "how do I protect myself from identity
+  // theft") is a security question; only a victim report gets the fraud referral.
+  const ID_THEFT_EDU = /\b(what is|what are|whats|define|explain|tell me about|learn about|how (does|do|is|can|could|would) (\w+ ){0,3}(happen|happens|work|works|occur|occurs|done|committed)|(how (do|can|could|should) (i|we|you|people|families|one)|how to|ways to|best way to|tips (to|for)|help me) (protect|prevent|avoid|stop|guard|spot|recognize|detect|reduce)|protect (\w+ ){0,2}(from|against)|signs of|how common is)\b/;
+  const ID_THEFT_VICTIM = /\b(my identity|i (am|was|have been|got|think i|might|may)|we (are|were|have been|got)|victims?|happened to (me|us)|someone (used|is using|opened|stole|took|has)|(used|using|stole|opened|took) (my|our)|in my name)\b/;
+
+  function fraud(w0) {
+    const w = /\bidentity (theft|fraud)\b/.test(w0) && ID_THEFT_EDU.test(w0) && !ID_THEFT_VICTIM.test(w0)
+      ? w0.replace(/\bidentity (theft|fraud)\b/g, 'identity') : w0;
     return /\b((bank|card|credit card|debit card|credit|account|wire|payment|paypal|venmo|zelle|identity|tax) fraud|fraud(ulent)? (charges?|transactions?|activity|purchases?)|stolen (credit |debit |bank )?cards?|(card|wallet|identity) (was|got|has been|is) stolen|(stole|stolen) my (card|credit card|debit card|identity|bank)|unauthori[sz]ed (charges?|transactions?|purchases?|payments?|withdrawals?|access to my bank)|charges? (that )?i (did not|never) make|identity theft|(i|we) (was|were|got|have been|been) scammed|someone (used|is using|stole|has) my (card|credit card|debit card|bank|identity|account)|(bank|bank account|credit card|card|paypal|venmo) (account )?(was|got|has been|is) (hacked|compromised|drained|emptied)|report (a )?fraud|suspected fraud)\b/.test(w);
   }
 
   function outage(w) {
     if (PRODUCT_SUBJECT.test(w) && !/\b(my|our) (internet|wifi|router|modem|connection)\b/.test(w)) return false;
+    // How the product behaves in an outage ("does it still work if my internet goes down") is a
+    // product question, not a report of one.
+    if ((PRODUCT_SUBJECT.test(w) || /\b(sensor|watchdog|alpha watchdog|the app|alerts|monitoring)\b/.test(w)) &&
+      /\b(if|when|whenever|while|during|in case( of)?|after)\b (\w+ ){0,3}(internet|wifi|connection|network|broadband|power|electricity|router|modem|isp|service|outage|blackout)\b/.test(w)) return false;
     if (/\b(internet|wifi|connection|network|broadband|service|isp)\b (\w+ ){0,2}(is|went|goes|has gone|has been|keeps going|was|keeps) (down|out|offline|dead)\b/.test(w)) return true;
     if (/\b(internet|wifi|connection|network|broadband|router|modem|isp)\b (\w+ ){0,2}(not working|is not working|does not work|stopped working|keeps dropping|keeps disconnecting|keeps cutting out|is broken|broke|is dead|will not connect|can not connect|wont connect|is offline|is down)\b/.test(w)) return true;
     if (/\b(no internet|internet outage|wifi outage|power outage|service outage|outage in|an outage|the outage|internet is out|can not get online|can not connect to (the )?(internet|wifi))\b/.test(w)) return true;
@@ -265,7 +362,44 @@
     return false;
   }
 
-  function offTopic(w, raw) {
+  // Published prices (DEMO_FACTS in api/chat.js): sensor $89, extra sensor $69, Watchdog+ $3.99/month
+  // or $39/year, Watchdog Business $9.99/month.
+  const OUR_PRICES = ['89', '69', '39', '3.99', '9.99'];
+  const OUR_PRICE_TEXT = /\$ ?(89|69|39|3\.99|9\.99)(\.00)?(?!\.?\d)|\b(89|69|39|3\.99|9\.99)(\.00)? ?(dollars|bucks|usd)\b/g;
+  const PRODUCT_TERMS = /\b(alpha watchdog|watchdog|watchdogplus|sensors?|plans?|tiers?|subscriptions?|trial|discounts?|refunds?|the app|price|prices|pricing|cost|costs)\b/;
+  const CODING = /\b(write|writing|wrote|generate|generating|debug|debugging|compile|compiling|run|running|execute|refactor|review|reviewing|program|programming|script|python|javascript)\b/;
+
+  // Security and product questions that borrow off-topic words: "what is a 2FA code", "what is a
+  // romance scam", "is it worth the investment", "does the price include taxes". Only these exact
+  // phrases are cut; any other off-topic word in the message still counts.
+  function productPhrases(w) {
+    let s = w.replace(/\b(crypto|cryptocurrency|bitcoin|romance|romantic|dating|investment|investing|stock|lottery|sweepstakes) (scams?|fraud|schemes?)\b/g, 'scam');
+    if (!CODING.test(s)) s = s.replace(/\b(2fa|mfa|two factor|2 factor|verification|security|login|one time|otp|authentication|authenticator|sms|qr|promo|promotional|discount|coupon) codes?\b/g, 'securitycode');
+    if (PRODUCT_SUBJECT.test(s) || PRODUCT_TERMS.test(s)) {
+      s = s.replace(/\b(worth|good|smart|wise|bad|great|solid|sound|reasonable|worthwhile) (the |an |a |my |this )?investment\b/g, 'worth')
+        .replace(/\b(include|includes|including|incl|plus|with|before|after|without) (sales )?tax(es)?\b|\btax(es)? (included|extra|on top)\b/g, 'fee')
+        .replace(/\bcampbellsville( university)? (students?|staff|faculty|alumni)\b/g, 'students')
+        .replace(/\b(available|offered|come|comes|work|works|supported|support|supports|exist|exists|released|sold) in (spanish|french|german|chinese|japanese|hindi|arabic)\b/g, 'available');
+    }
+    return s;
+  }
+
+  // Arithmetic is off-topic unless it is about our own prices ("89 + 69 for two sensors",
+  // "is 3.99 x 12 more than 39"): one operand a published price, the other a price or a count up to 24.
+  function offTopicMath(raw) {
+    const re = /\b(?!24 ?\/ ?7\b)(\d+(?:\.\d+)?) ?(plus|minus|times|x|\*|\+|-|\/|divided by|multiplied by|to the power of) ?(\d+(?:\.\d+)?)\b/g;
+    const ours = function (n) { return OUR_PRICES.indexOf(n) >= 0; };
+    const count = function (n) { return /^\d+$/.test(n) && +n <= 24; };
+    let m;
+    while ((m = re.exec(raw))) {
+      if (!((ours(m[1]) && (ours(m[3]) || count(m[3]))) || (ours(m[3]) && count(m[1])))) return true;
+    }
+    return false;
+  }
+
+  function offTopic(w0, raw) {
+    const w = productPhrases(w0);
+    if (offTopicMath(raw)) return true;
     const P = [
       /\b(president|presidents|presidential|election|elections|vote|voting|voter|politics|political|politician|democrats?|republicans?|congress|senate|senator|governor|prime minister|parliament|trump|biden|harris|obama|white house|supreme court|campaign|left wing|right wing)\b/,
       /\b(news today|current events|headlines|war in|ukraine|russia|israel|gaza|palestine|china tariffs|tariffs)\b/,
@@ -290,7 +424,7 @@
       /\b(translate (this|that|the following|to|into|from)|in (spanish|french|german|chinese|japanese|hindi|arabic)|speak (spanish|french|german))\b/,
       /\b(religion|religious|god exist|bible|quran|church|abortion|gun control)\b/,
       /\b(time is it|what day is it|what is the date today|todays date)\b/,
-      /\b(?!24 ?\/ ?7\b)\d+ ?(plus|minus|times|x|\*|\+|-|\/|divided by|multiplied by|to the power of) ?\d+\b|<\s*\/?\s*(script|img|iframe|svg|object|embed|style|a|body|html|div|input|form|link|meta)\b|javascript:|on(error|load|click)\s*=/
+      /<\s*\/?\s*(script|img|iframe|svg|object|embed|style|a|body|html|div|input|form|link|meta)\b|javascript:|on(error|load|click)\s*=/
     ];
     for (let i = 0; i < P.length; i++) {
       if (P[i].test(i === P.length - 1 ? raw : w)) return true;
@@ -302,16 +436,14 @@
     return /\b(exact|exactly|specific|precise|actual|final|retail|msrp|launch|list|real|official|sticker) (price|cost|pricing|amount|figure|number)\b/.test(w) ||
       /\b(price|cost|pricing|how much)\b (\w+ ){0,4}(exactly|in dollars|in usd|specifically|precisely|to the dollar)\b/.test(w) ||
       /\bhow much exactly\b/.test(w) ||
-      /(\$ ?\d|\b\d+ ?(dollars|bucks|usd)\b)/.test(raw) ||
+      /(\$ ?\d|\b\d+ ?(dollars|bucks|usd)\b)/.test(raw.replace(OUR_PRICE_TEXT, ' ')) ||
       /\b(launch|release|ship|shipping|delivery|availability|preorder|sale|on sale|in stores|go live|arrival|drop) (date|day|month|year|time|timeline|schedule)\b/.test(w) ||
       /\b(when exactly|exactly when|what date|which date|what day will|what month|which month|what year will|which year|how soon exactly)\b/.test(w) ||
       /\b(launch|release|ship|available|availability|come out|be out|go on sale|on sale|ready) (\w+ ){0,3}(in|by|before|on) (january|february|march|april|may|june|july|august|september|october|november|december|20\d\d|q[1-4]|spring|summer|fall|autumn|winter|christmas|next (week|month|year)|this (week|month|year))\b/.test(w) ||
-      /\bhow many (customers|users|people use|people have|households|homes|sales|units|downloads|subscribers|clients|families|buyers|orders|preorders|installs)\b/.test(w) ||
+      /\bhow many (customers|users|people use|people have|sales|units|downloads|subscribers|clients|families|buyers|orders|preorders|installs)\b/.test(w) ||
       /\b(number of|count of) (customers|users|sales|units|subscribers|clients)\b/.test(w) ||
-      /\b(partner|partners|partnership|partnerships|partnered|investors?|funding|funded|backed by|backers|sponsors?|sponsored|affiliated|acquired|acquisition|valuation|revenue|profit|profits)\b/.test(w) ||
-      /\b(warranty|warranties|guarantee|guaranteed|guarantees|return policy|refund|refunds|money back|money-back)\b/.test(w) ||
-      /\b(certified|certification|certifications|compliant|compliance|fcc|gdpr|hipaa|soc 2|soc2|iso 27001|patent|patented|patents)\b/.test(w) ||
-      /\b(battery|battery life|dimensions|how big is|how heavy|weight|weigh|specs|specifications|tech specs)\b/.test(w);
+      /\b(partner|partners|partnership|partnerships|partnered|investors?|backed by|backers|sponsors?|sponsored|affiliated|acquired|acquisition|valuation)\b/.test(w) ||
+      /\b(certified|certification|certifications|compliant|compliance|fcc|gdpr|hipaa|soc 2|soc2|iso 27001|patent|patented|patents)\b/.test(w);
   }
 
   const INSULT = '(useless|worthless|pathetic|garbage|trash|dumb|stupid|idiotic|idiot|moron|lame|terrible|awful|horrible|annoying|clown|loser|crap|crappy|rubbish|the worst|a waste|waste of time|dense|brainless)';
@@ -327,7 +459,9 @@
   }
 
   // Links, markup and code of any kind: the bot never opens or runs them.
-  const SAFE_DOMAINS = /(^|[^a-z0-9.\-@])(https?:\/\/)?(www\.)?(ic3\.gov|alphachat\.today)(\/[a-z0-9_\-.\/]*)?(?![a-z0-9\-]|\.[a-z0-9])/g;
+  // Official reporting sites and our own domain. The path may not contain "..", so a traversal
+  // string after an allowed domain is still caught below.
+  const SAFE_DOMAINS = /(^|[^a-z0-9.\-@])(https?:\/\/)?(www\.)?(ic3\.gov|fbi\.gov|alphachat\.today)(\/(?:[a-z0-9_\-\/]|\.(?!\.))*)?(?![a-z0-9\-]|\.[a-z0-9])/g;
   const TLD = '(com|net|org|io|co|ru|cn|xyz|info|biz|ly|gov|edu|uk|de|fr|nl|eu|ca|au|jp|br|ir|kp|su|tk|ml|ga|cf|gq|top|site|online|link|click|live|shop|store|tv|cc|ws|pw|zip|mov|sh|gg|ai|app|dev|today|page|cloud|tech|club|win|bid|xxx|onion|icu|buzz|rest|cam|lol|fun|space|website|host|mobi|pro|name|tel|vip|work|news|life|world|email|support|exe|apk|bat|cmd|ps1|vbs|scr|msi|dll|jar|php|asp|aspx|jsp|cgi|html|htm)';
   const LINK_CODE = [
     /\b[a-z][a-z0-9+.\-]{1,15}:\/\//, /\bhxxps?\b|\bh[tx]{2}ps?\s?:/, /\bwww\d?\s?\./,
@@ -394,6 +528,9 @@
 
   const STOP = new Set(['the', 'a', 'an', 'it', 'is', 'are', 'am', 'be', 'to', 'of', 'for', 'and', 'or', 'in', 'on', 'my', 'me', 'i', 'this', 'that', 'with', 'at', 'by', 'from', 'your', 'you', 'we', 'our', 'can', 'will', 'would', 'should', 'could', 'does', 'do', 'did', 'just', 'so', 'some', 'any', 'please', 'there', 'about', 'what', 'how', 'yall']);
   const VAGUE = /^(hmm+|hm+|um+|uh+|huh|ok|okay|k|sure|yes|yeah|yep|no|nope|nah|maybe|idk|what|why|really|more|tell me more|go on|and|so|well|interesting|i see|wow|lol|nice|\?+|help me|explain|details|more info|more details|anything else|other|else|continue)$/;
+  // A word that clearly puts a message about the product or home security ("my wyze cam ...",
+  // "is my hisense tv hacked"), so an unknown brand name alongside it is not treated as off-topic.
+  const ANCHOR = /^(alpha|watchdog|watchdogplus|sensors?|hijacked|hacked|hack|hacker|hackers|infected|malware|botnet|badbox|virus|cameras?|cam|webcam|doorbells?|monitors?|thermostats?|tv|tvs|projectors?|frames?|roku|firestick|chromecast|router|modem|wifi|network|devices?|alerts?|probation|isolate|privacy|plans?|subscription|trial|cancel|refund|warranty|pilot|team|phishing|scam|password|passwords|security)$/;
 
   let indexFor = null;
   let index = null;
@@ -493,6 +630,14 @@
       if (score > bestScore) { second = bestScore; bestScore = score; best = it.id; } else if (score > second) second = score;
     }
     const conf = Math.round(bestScore * 100) / 100;
+    // An unrelated question ("how much does a puppy cost", "my printer is offline") can share one
+    // generic word with an answer. If the match is only moderate, the message has a word the
+    // knowledge base never uses, and nothing in it is about the product or home security, ask
+    // instead of guessing. (Offline matcher only; online, Claude routes every message.)
+    if (best && bestScore >= HIGH && bestScore < OOV_STRONG && !tokens.some(function (t) { return ANCHOR.test(t); }) &&
+      tokens.some(function (t) { return !STOP.has(t) && t.length > 2 && !/\d/.test(t) && !idx.vocab.has(t); })) {
+      return { ids: [safeId(kb, 'clarify', 'off_topic')], confidence: conf };
+    }
     if (best && bestScore >= HIGH) return { ids: [safeId(kb, best, 'clarify')], confidence: conf };
     if (bestScore >= LOW || tokens.length <= 3 || VAGUE.test(norm)) return { ids: [safeId(kb, 'clarify', 'off_topic')], confidence: conf };
     return { ids: [safeId(kb, 'off_topic', 'clarify')], confidence: conf };

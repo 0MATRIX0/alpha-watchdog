@@ -1,7 +1,8 @@
 /* Alpha Watchdog · "gotcha" reveal — a demo prank for people who try to break the bot.
  *
- * WHAT IT DOES: when a message trips a safety guardrail (injection, credential grab,
- * harmful request, pasted links/scripts, abuse), the bot fires back a witty line that
+ * WHAT IT DOES: only when a message is an UNMISTAKABLE attempt to break the bot — a prompt
+ * injection ("ignore your instructions", "you are now…") or pasted code/links/SQL — the bot
+ * fires back a witty line that
  * shows the visitor what their own browser and network already hand to every website:
  * browser, OS, screen, timezone, language, hardware hints, GPU, and their public IP.
  * It escalates with each attempt. The point is a security lesson: this is how much you
@@ -16,9 +17,11 @@
 (function (root) {
   'use strict';
 
-  // Guardrail ids that count as "trying to break it". Not sensitive_data (that is the
-  // user exposing themselves — we protect, we don't taunt), not off-topic/flood/etc.
-  var ATTACK_IDS = { injection: 1, credentials_request: 1, harmful: 1, link_or_code: 1, abuse: 1 };
+  // Guardrail ids that count as an unmistakable, deliberate attempt to break the bot.
+  // Deliberately narrow: ONLY prompt-injection and pasted code/links. Harmful requests,
+  // credential grabs, abuse and sensitive-data get a calm decline, never the taunt — a
+  // confused or rude visitor is not the same as someone attacking the bot.
+  var ATTACK_IDS = { injection: 1, link_or_code: 1 };
 
   var attempts = 0;
   var ipPromise = null; // fetched at most once per page load
